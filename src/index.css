@@ -1,0 +1,38 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  White-label theme tokens. Defaults below are the "house" theme; each tenant
+  overrides these CSS variables at runtime (see src/config/theme.ts), so the
+  entire palette is reassignable without touching a single component.
+*/
+:root {
+  --brand: 37 99 235;        /* blue-600 */
+  --brand-fg: 255 255 255;
+  --canvas: 247 248 250;     /* page background */
+  --surface: 255 255 255;    /* cards / panels */
+  --ink: 17 24 39;           /* primary text */
+  --muted: 107 114 128;      /* secondary text */
+  --line: 229 231 235;       /* borders */
+
+  /* Traffic-light compliance states */
+  --state-green: 22 163 74;
+  --state-amber: 217 119 6;
+  --state-red: 220 38 38;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: rgb(var(--canvas));
+  color: rgb(var(--ink));
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
