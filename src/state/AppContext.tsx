@@ -13,17 +13,24 @@ import {
   type ReactNode,
 } from "react";
 import {
-  fetchMetricDefinitions,
+  fetchKpiConfig,
   fetchResponses,
   fetchTenants,
 } from "@/data/repository";
 import { applyTenantTheme } from "@/config/theme";
 import type {
   FilterState,
-  MetricDefinition,
+  KpiConfig,
   SurveyResponse,
   Tenant,
 } from "@/data/types";
+
+const EMPTY_KPI_CONFIG: KpiConfig = {
+  definitions: [],
+  sources: [],
+  formulas: [],
+  thresholds: [],
+};
 
 const NO_FILTERS: FilterState = {
   q1_demographic: "all",
@@ -41,7 +48,7 @@ interface AppState {
   setFilter: (key: keyof FilterState, value: string) => void;
   resetFilters: () => void;
   responses: SurveyResponse[]; // already filtered by Q1-Q3
-  metricDefs: MetricDefinition[];
+  kpiConfig: KpiConfig;
 }
 
 const Ctx = createContext<AppState | null>(null);
@@ -53,7 +60,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
   const [filters, setFilters] = useState<FilterState>(NO_FILTERS);
   const [responses, setResponses] = useState<SurveyResponse[]>([]);
-  const [metricDefs, setMetricDefs] = useState<MetricDefinition[]>([]);
+  const [kpiConfig, setKpiConfig] = useState<KpiConfig>(EMPTY_KPI_CONFIG);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -81,12 +88,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     setLoading(true);
     Promise.all([
-      fetchMetricDefinitions(tenantId),
+      fetchKpiConfig(tenantId),
       fetchResponses(tenantId, filters),
     ])
-      .then(([defs, rows]) => {
+      .then(([config, rows]) => {
         if (cancelled) return;
-        setMetricDefs(defs);
+        setKpiConfig(config);
         setResponses(rows);
         setError(null);
       })
@@ -114,7 +121,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setFilter,
     resetFilters,
     responses,
-    metricDefs,
+    kpiConfig,
   };
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

@@ -4,7 +4,7 @@
 
 import type {
   DeliveryModel,
-  MetricDefinition,
+  KpiConfig,
   Project,
   RespondentTypology,
   Sentiment,
@@ -61,29 +61,89 @@ export const SEED_PROJECTS: Project[] = [
   },
 ];
 
-// Six STANDARDIZED (global) KPI slots — one set shared by all tenants.
-export const SEED_METRICS: MetricDefinition[] = (
-  [
-    ["Local Health & Environmental Quality", "q4_score", "avg", "pts", "higher_better", 75, 50],
-    ["Public Realm Safety & Accessibility", "q5_score", "avg", "pts", "higher_better", 70, 45],
-    ["Sustainable Mobility Integration", "q6_score", "avg", "pts", "higher_better", 70, 45],
-    ["Sustainability Performance", "q7_score", "avg", "pts", "higher_better", 72, 48],
-    ["Community Wellbeing & Belonging", "q8_score", "avg", "pts", "higher_better", 68, 45],
-    ["Housing Cost-to-Income Ratio", "housing_cost_to_income", "avg", "%", "lower_better", 35, 45],
-  ] as const
-).map((r, i) => ({
-  id: `global-m${i + 1}`,
-  tenant_id: null,
-  slot_index: i + 1,
-  metric_title: r[0],
-  source_column: r[1] as MetricDefinition["source_column"],
-  aggregation: r[2] as MetricDefinition["aggregation"],
-  unit: r[3],
-  direction: r[4] as MetricDefinition["direction"],
-  green_at: r[5],
-  amber_at: r[6],
-  is_active: true,
-}));
+// Six STANDARDIZED (global) KPIs — the KPI engine config (mirrors 0005_kpi_engine.sql).
+const KPI_DEFS: Array<
+  [string, string, string, KpiConfig["definitions"][number]["category"], KpiConfig["definitions"][number]["calculation_type"], boolean]
+> = [
+  ["LOCAL_ENV_QUALITY", "Local Health & Environmental Quality", "Composite of environmental/health quality and wellbeing signal.", "environmental", "weighted_average", true],
+  ["PR_SAFETY_ACCESS", "Public Realm Safety & Accessibility", "Perception of safety, lighting, inclusivity and access of open spaces.", "public_realm", "weighted_average", true],
+  ["SUS_MOBILITY", "Sustainable Mobility Integration", "Satisfaction with low-carbon transit, cycle storage and access.", "mobility", "direct", false],
+  ["SUSTAINABILITY", "Sustainability Performance", "Composite sustainability and environmental-quality signal.", "sustainability", "weighted_average", true],
+  ["COMMUNITY_WELLBEING", "Community Wellbeing & Belonging", "Belonging, community and overall wellbeing themes.", "community", "weighted_average", true],
+  ["HOUSING_AFFORDABILITY", "Housing Affordability", "Cost-to-income ratio inverted to a 0–100 affordability score (higher = more affordable).", "housing", "direct", false],
+];
+
+// source_key, weight, transformation, keyed by kpi code
+const KPI_SRC: Record<string, Array<[string, number, KpiConfig["sources"][number]["transformation"]]>> = {
+  LOCAL_ENV_QUALITY: [["q4_score", 0.6, "passthrough"], ["q9_score", 0.4, "passthrough"]],
+  PR_SAFETY_ACCESS: [["q5_score", 0.7, "passthrough"], ["q8_score", 0.3, "passthrough"]],
+  SUS_MOBILITY: [["q6_score", 1.0, "passthrough"]],
+  SUSTAINABILITY: [["q7_score", 0.7, "passthrough"], ["q4_score", 0.3, "passthrough"]],
+  COMMUNITY_WELLBEING: [["q8_score", 0.5, "passthrough"], ["q9_score", 0.5, "passthrough"]],
+  HOUSING_AFFORDABILITY: [["housing_cost_to_income", 1.0, "invert_cost_to_income"]],
+};
+
+const KPI_FORMULA: Record<string, [KpiConfig["formulas"][number]["formula_type"], string]> = {
+  LOCAL_ENV_QUALITY: ["weighted_average", "Q4*0.6 + Q9*0.4"],
+  PR_SAFETY_ACCESS: ["weighted_average", "Q5*0.7 + Q8*0.3"],
+  SUS_MOBILITY: ["direct", "Q6"],
+  SUSTAINABILITY: ["weighted_average", "Q7*0.7 + Q4*0.3"],
+  COMMUNITY_WELLBEING: ["weighted_average", "Q8*0.5 + Q9*0.5"],
+  HOUSING_AFFORDABILITY: ["index", "100 - normalize(cost_to_income)"],
+};
+
+const KPI_THRESH: Record<string, [number, number]> = {
+  LOCAL_ENV_QUALITY: [75, 50],
+  PR_SAFETY_ACCESS: [70, 45],
+  SUS_MOBILITY: [70, 45],
+  SUSTAINABILITY: [72, 48],
+  COMMUNITY_WELLBEING: [68, 45],
+  HOUSING_AFFORDABILITY: [65, 45],
+};
+
+export const SEED_KPI_CONFIG: KpiConfig = {
+  definitions: KPI_DEFS.map(([code, name, desc, cat, calc, composite], i) => ({
+    id: `kpi-${code}`,
+    tenant_id: null,
+    project_id: null,
+    kpi_code: code,
+    kpi_name: name,
+    description: desc,
+    category: cat,
+    calculation_type: calc,
+    is_composite: composite,
+    is_active: true,
+    display_order: i + 1,
+  })),
+  sources: KPI_DEFS.flatMap(([code]) =>
+    KPI_SRC[code].map(([key, weight, tr], j) => ({
+      id: `src-${code}-${j}`,
+      kpi_id: `kpi-${code}`,
+      source_type: "survey" as const,
+      source_key: key,
+      weight,
+      transformation: tr,
+      is_active: true,
+    }))
+  ),
+  formulas: KPI_DEFS.map(([code]) => ({
+    id: `frm-${code}`,
+    kpi_id: `kpi-${code}`,
+    formula_type: KPI_FORMULA[code][0],
+    expression: KPI_FORMULA[code][1],
+    normalization_min: 0,
+    normalization_max: 100,
+  })),
+  thresholds: KPI_DEFS.map(([code]) => ({
+    id: `thr-${code}`,
+    kpi_id: `kpi-${code}`,
+    condition_type: "score_range" as const,
+    green_min: KPI_THRESH[code][0],
+    amber_min: KPI_THRESH[code][1],
+    red_min: 0,
+    is_global: true,
+  })),
+};
 
 // --- deterministic PRNG (mulberry32) -----------------------------------------
 function mulberry32(seed: number) {

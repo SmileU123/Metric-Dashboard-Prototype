@@ -4,6 +4,7 @@ import { DashboardShell } from "./components/DashboardShell";
 import { OverviewPage } from "./pages/OverviewPage";
 import { DeepDivePage } from "./pages/DeepDivePage";
 import { QualitativePage } from "./pages/QualitativePage";
+import { KpiEnginePage } from "./pages/KpiEnginePage";
 
 function ErrorBanner() {
   const { error } = useApp();
@@ -24,6 +25,7 @@ export default function App() {
           <Route path="/" element={<OverviewPage />} />
           <Route path="/feed/:slug" element={<DeepDivePage />} />
           <Route path="/qualitative" element={<QualitativePage />} />
+          <Route path="/engine" element={<KpiEnginePage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </DashboardShell>

@@ -51,6 +51,12 @@ export function DashboardShell({ children }: { children: ReactNode }) {
           <NavLink to="/qualitative" className={navItemClass}>
             Open Feedback (Q10)
           </NavLink>
+          <p className="px-3 pb-1 pt-4 text-[11px] font-semibold uppercase text-muted/70">
+            Configuration
+          </p>
+          <NavLink to="/engine" className={navItemClass}>
+            KPI Engine
+          </NavLink>
         </nav>
       </aside>
 

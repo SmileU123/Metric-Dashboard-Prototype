@@ -5,7 +5,6 @@
 export type ComplianceState = "green" | "amber" | "red";
 export type Sentiment = "positive" | "neutral" | "negative";
 export type ResponseSource = "field_pwa" | "digital_public";
-export type Aggregation = "avg" | "count" | "pct_positive" | "pct_compliant";
 export type MetricDirection = "higher_better" | "lower_better";
 
 // Respondent typology — drives the Pages 2-4 deep-dive segmentation.
@@ -63,21 +62,6 @@ export interface SurveyResponse {
   q10_sentiment_score: number;
 }
 
-// Config-driven binding for a Page 1 headline metric slot.
-export interface MetricDefinition {
-  id: string;
-  tenant_id: string | null; // null = standardized global KPI
-  slot_index: number; // 1..6
-  metric_title: string;
-  source_column: keyof SurveyResponse | "id";
-  aggregation: Aggregation;
-  unit: string;
-  direction: MetricDirection;
-  green_at: number;
-  amber_at: number;
-  is_active: boolean;
-}
-
 // A computed metric ready to render in a card (+ everything the charts need).
 export interface MetricView {
   slot_index: number;
@@ -91,6 +75,93 @@ export interface MetricView {
   direction: MetricDirection;
   scale_max: number;
   trend: { label: string; value: number }[]; // last 6 months
+}
+
+// =============================================================================
+// KPI ENGINE (mirrors supabase/migrations/0005_kpi_engine.sql)
+// =============================================================================
+export type KpiCalcType = "weighted_average" | "ratio" | "index" | "direct";
+export type KpiSourceType = "survey" | "external" | "computed";
+export type KpiTransformation =
+  | "passthrough"
+  | "normalize_1_5_to_0_100"
+  | "invert_cost_to_income";
+export type KpiFormulaType =
+  | "weighted_sum"
+  | "weighted_average"
+  | "ratio"
+  | "index"
+  | "direct";
+
+export interface KpiDefinition {
+  id: string;
+  tenant_id: string | null; // null = global
+  project_id: string | null;
+  kpi_code: string;
+  kpi_name: string;
+  description: string;
+  category: string;
+  calculation_type: KpiCalcType;
+  is_composite: boolean;
+  is_active: boolean;
+  display_order: number;
+}
+
+export interface KpiSource {
+  id: string;
+  kpi_id: string;
+  source_type: KpiSourceType;
+  source_key: string; // survey column, e.g. 'q4_score'
+  weight: number;
+  transformation: KpiTransformation;
+  is_active: boolean;
+}
+
+export interface KpiFormula {
+  id: string;
+  kpi_id: string;
+  formula_type: KpiFormulaType;
+  expression: string;
+  normalization_min: number;
+  normalization_max: number;
+}
+
+export interface KpiThreshold {
+  id: string;
+  kpi_id: string;
+  condition_type: "absolute" | "percentage" | "score_range";
+  green_min: number;
+  amber_min: number;
+  red_min: number;
+  is_global: boolean;
+}
+
+// Everything the engine needs, fetched together.
+export interface KpiConfig {
+  definitions: KpiDefinition[];
+  sources: KpiSource[];
+  formulas: KpiFormula[];
+  thresholds: KpiThreshold[];
+}
+
+// Runtime output (KPI_Result) enriched with the extras the charts need.
+export interface KpiComputed extends MetricView {
+  kpi_id: string;
+  kpi_code: string;
+  category: string;
+  data_period: string;
+  calculated_at: string;
+}
+
+// Audit record for one engine run (KPI_RunLog).
+export interface KpiRunLog {
+  tenant_id: string;
+  input_records_count: number;
+  calculation_version: string;
+  execution_time_ms: number;
+  status: "success" | "failed";
+  error_message: string | null;
+  created_at: string;
 }
 
 // The Q1-Q3 filter selection that drives every screen.

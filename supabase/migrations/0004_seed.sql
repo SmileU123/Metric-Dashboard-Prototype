@@ -18,17 +18,7 @@ insert into public.projects (tenant_id, name, status, completion_date, retention
   ('meridian',  'Harbour View Phase 1','completed', date '2026-03-15', date '2026-09-15'),
   ('meridian',  'Parkgate Mews',      'active',    null,             null);
 
--- ---- Six STANDARDIZED (global) headline KPI slots ---------------------------
--- tenant_id NULL => applies to every tenant with identical weighting/thresholds.
-insert into public.metric_definitions
-  (tenant_id, slot_index, metric_title, source_column, aggregation, unit, direction, green_at, amber_at)
-values
-  (null, 1, 'Local Health & Environmental Quality', 'q4_score',               'avg', 'pts', 'higher_better', 75, 50),
-  (null, 2, 'Public Realm Safety & Accessibility',  'q5_score',               'avg', 'pts', 'higher_better', 70, 45),
-  (null, 3, 'Sustainable Mobility Integration',     'q6_score',               'avg', 'pts', 'higher_better', 70, 45),
-  (null, 4, 'Sustainability Performance',           'q7_score',               'avg', 'pts', 'higher_better', 72, 48),
-  (null, 5, 'Community Wellbeing & Belonging',      'q8_score',               'avg', 'pts', 'higher_better', 68, 45),
-  (null, 6, 'Housing Cost-to-Income Ratio',         'housing_cost_to_income', 'avg', '%',   'lower_better',  35, 45);
+-- (The six standardized KPIs are seeded by the KPI engine in 0005_kpi_engine.sql.)
 
 -- ---- Synthetic survey responses ---------------------------------------------
 -- ~160 rows per tenant across the last 6 months, spread over respondent

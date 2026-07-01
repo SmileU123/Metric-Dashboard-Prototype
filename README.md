@@ -80,35 +80,38 @@ src/
 │  └─ theme.ts             # white-label token application
 ├─ data/
 │  ├─ types.ts             # domain contracts (mirror the SQL schema)
-│  ├─ seed.ts              # deterministic offline dataset (mirrors 0004_seed.sql)
-│  ├─ metrics.ts           # config-driven metric computation + traffic-light logic
+│  ├─ seed.ts              # deterministic offline dataset (mirrors 0004/0005 seed)
+│  ├─ kpiEngine.ts         # ★ in-app KPI engine (mirror of recompute_kpis())
 │  └─ repository.ts        # ★ the ONLY data seam: Supabase OR seed, + Q1–Q3 filtering
 ├─ lib/
 │  └─ supabaseClient.ts    # client + isSupabaseConfigured switch
 ├─ state/
 │  └─ AppContext.tsx       # active tenant, filters, loaded data; re-themes on switch
-├─ components/             # MetricCard, TrafficLight, FilterBar, CaptureFeedTable, …
+├─ components/             # MetricCard, charts, TrafficLight, FilterBar, CaptureFeedTable, …
 ├─ pages/
-│  ├─ OverviewPage.tsx     # Page 1 — six headline metric slots
-│  ├─ DeepDivePage.tsx     # Pages 2–4 — typology capture feeds (config-parameterised)
-│  └─ QualitativePage.tsx  # Q10 — open feedback + sentiment
+│  ├─ OverviewPage.tsx     # Page 1 — six KPI slots (varied charts) + engine audit
+│  ├─ DeepDivePage.tsx     # Pages 2–4 — cohort capture feeds (config-parameterised)
+│  ├─ QualitativePage.tsx  # Q10 — open feedback + sentiment
+│  └─ KpiEnginePage.tsx    # KPI engine config + formula + thresholds + run log
 └─ App.tsx                 # routes + shell
 
 supabase/migrations/
-├─ 0001_init_multitenant.sql   # tenants, members, survey_responses (Q1–Q10), metric_definitions
+├─ 0001_init_multitenant.sql   # tenants, projects, members, survey_responses (Q1–Q10)
 ├─ 0002_rls_stream_a.sql       # Row-Level Security policies (per-tenant isolation)
 ├─ 0003_stream_b_macro_pool.sql# anonymized cross-tenant analytical views
-└─ 0004_seed.sql               # demo data
+├─ 0004_seed.sql               # demo tenants / projects / survey responses
+└─ 0005_kpi_engine.sql         # ★ KPI engine: 6 config tables + recompute_kpis()
 ```
 
 ### The "Defensive Design" mapping (why this is resilient)
 
 | Brief requirement | Where it lives | Change without touching code? |
 |---|---|---|
-| **6 Page-1 metric slots** bound to `metric_title` / `metric_value` / `compliance_state` | `metric_definitions` table → `computeMetrics()` → `MetricCard` | ✅ `UPDATE metric_definitions` |
+| **6 Page-1 KPIs** bound to `metric_title` / `metric_value` / `compliance_state` | KPI engine tables → `runKpiEngine()` → `MetricCard` | ✅ `INSERT/UPDATE` KPI config |
+| **KPI inputs, weights, formula, thresholds** | `kpi_sources` / `kpi_formula` / `kpi_thresholds` | ✅ config rows (no code) |
+| **Per-KPI chart type** | `KPI_VIZ` in `defensiveDesign.ts` | ✅ one map entry |
 | **Q4–Q9 thematic column headers** (e.g. "Public Realm Safety & Access (Q5)") | `IMPACT_THEMES` in `defensiveDesign.ts` | ✅ edit one array entry |
 | **Pages 2–4 respondent cohorts** | `DEEP_DIVE_PAGES` in `defensiveDesign.ts` | ✅ edit one array entry |
-| **Metric direction (higher/lower-is-better)** | `direction` on `metric_definitions` | ✅ config value |
 | **Q1–Q3 contextual filters** | `FILTER_DEFS` in `defensiveDesign.ts` | ✅ edit one array entry |
 | **Q10 280-char + sentiment tag** | `survey_responses.q10_*` + `SentimentFeed` | ✅ hard cap enforced in DB + config |
 | **White-label theming** | `branding` JSON per tenant → CSS variables | ✅ data change |
@@ -134,20 +137,43 @@ wording can change post-pitch with zero migration.
   (`construction_adjacent` | `resident_completed`) and **`delivery_model`**
   (`build_to_rent` | `build_to_sell`) — these drive the Pages 2–4 cohort
   screens — plus `source` and `utm` for the Phase 2 channels.
-- **`metric_definitions`** — config rows binding each Page-1 slot to a
-  `source_column` + `aggregation` + `direction` (higher/lower-is-better) +
-  thresholds. **Standardized KPIs are global (`tenant_id IS NULL`)**; a tenant
-  may override a slot with its own row.
+The Page-1 KPIs are driven by the **KPI engine** (see below), not a flat metrics
+table.
 
-### KPIs & cohorts (client-confirmed)
+### KPI Engine (`0005_kpi_engine.sql`)
 
-- **Page 1 — 6 standardized KPIs** (identical weighting across tenants): Local
-  Health & Environmental Quality, Public Realm Safety & Accessibility,
-  Sustainable Mobility Integration, Sustainability Performance, Community
-  Wellbeing & Belonging, and **Housing Cost-to-Income Ratio** (lower-is-better,
-  demonstrating the `direction` flag). *Provisional — client is refining.*
+A configurable calculation pipeline — every KPI is *data*, retuned with
+`INSERT`/`UPDATE`, never code:
+
+```
+survey rows → KPI_Sources (weight + transform) → KPI_Formula → KPI_Thresholds
+            → KPI_Result (Page 1 reads) → KPI_RunLog (audit)
+```
+
+| Table | Role |
+|---|---|
+| `kpi_definition` | master config (name, code, category, calc type, composite, `display_order`); global when `tenant_id IS NULL` |
+| `kpi_sources` | what feeds a KPI: `source_key` (survey column) + `weight` + `transformation` |
+| `kpi_formula` | how sources combine (`weighted_average` / `ratio` / `index`) + normalization |
+| `kpi_thresholds` | compliance bands: `green_min` / `amber_min` / `red_min` |
+| `kpi_result` | runtime output Page 1 reads (`value`, `compliance_state`, `data_period`) |
+| `kpi_runlog` | audit: `input_records_count`, `execution_time_ms`, `status`, version |
+
+`recompute_kpis(tenant, project, period)` is the server-side engine (the Phase-3
+scheduled/batch path). The app ships a **TypeScript mirror**
+(`src/data/kpiEngine.ts`, `runKpiEngine()`) so Page 1 recomputes **interactively
+under the Q1–Q3 filters** and works with zero backend. Both produce identical
+results; the run-log is surfaced on Page 1 and the **KPI Engine** screen.
+
+The six seeded KPIs (composite weighted averages of Q4–Q9, plus a Housing
+Affordability index that *inverts* cost-to-income via a source `transformation`)
+are **standardized/global**; a tenant may add its own. *Provisional — client is
+refining the KPI list.*
+
+### Cohorts (client-confirmed)
+
 - **Pages 2–4 — respondent cohorts**: Construction-Adjacent · Completed Build-to-Rent
-  · Completed Build-to-Sell.
+  · Completed Build-to-Sell (via `respondent_typology` + `delivery_model`).
 - **Benchmarking is out of scope** for now (no cross-portfolio data yet); clients
   see only their own project data. Stream B remains a Phase-3 foundation.
 
@@ -156,13 +182,11 @@ wording can change post-pitch with zero migration.
 | Function | Supabase call | Seed fallback |
 |---|---|---|
 | `fetchTenants()` | `from('tenants').select(...)` | `SEED_TENANTS` |
-| `fetchMetricDefinitions(tenantId)` | `from('metric_definitions').or(tenant_id.is.null,tenant_id.eq.X)` → merge by slot | merged `SEED_METRICS` |
+| `fetchKpiConfig(tenantId)` | `kpi_definition` (global + tenant) + its `kpi_sources`/`kpi_formula`/`kpi_thresholds` | `SEED_KPI_CONFIG` |
 | `fetchResponses(tenantId, filters)` | `from('survey_responses')…eq(...).eq(Q1–Q3)` | filtered `SEED_RESPONSES` |
 
-Cohort segmentation for Pages 2–4 is applied in the page via `matchesCohort()`.
-
-Metrics are computed in `src/data/metrics.ts` (same logic for both sources), so
-the live and seed paths are visually identical.
+The KPI engine (`runKpiEngine`) runs identically over both sources, and cohort
+segmentation for Pages 2–4 is applied in the page via `matchesCohort()`.
 
 ### External channels (Phase 2 — scaffolded, not yet wired)
 

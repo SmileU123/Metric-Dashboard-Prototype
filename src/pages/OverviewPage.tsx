@@ -4,11 +4,12 @@
 // chart. Reassigning a metric or its chart is a config change; this page doesn't.
 
 import { useMemo } from "react";
+import { Link } from "react-router-dom";
 import { PageHeader, Card } from "@/components/ui";
 import { MetricCard, MetricCardSkeleton } from "@/components/MetricCard";
 import { SentimentSummary } from "@/components/SentimentFeed";
 import { useApp } from "@/state/AppContext";
-import { computeMetrics } from "@/data/metrics";
+import { runKpiEngine } from "@/data/kpiEngine";
 import { KPI_VIZ } from "@/config/defensiveDesign";
 import { cn } from "@/lib/cn";
 import type { SurveyResponse } from "@/data/types";
@@ -67,12 +68,13 @@ function CohortMix({ rows }: { rows: SurveyResponse[] }) {
 }
 
 export function OverviewPage() {
-  const { metricDefs, responses, loading, tenant } = useApp();
+  const { kpiConfig, responses, loading, tenant } = useApp();
 
-  const metrics = useMemo(
-    () => computeMetrics(metricDefs, responses),
-    [metricDefs, responses]
+  const engine = useMemo(
+    () => runKpiEngine(kpiConfig, responses, tenant?.id ?? ""),
+    [kpiConfig, responses, tenant]
   );
+  const metrics = engine.results;
 
   const positivePct = useMemo(() => {
     if (responses.length === 0) return 0;
@@ -119,6 +121,17 @@ export function OverviewPage() {
         <CohortMix rows={responses} />
         <SentimentSummary rows={responses} />
       </div>
+
+      {/* KPI engine audit footer (KPI_RunLog) */}
+      <p className="mt-4 text-xs text-muted">
+        KPI engine · computed {metrics.length} KPIs from{" "}
+        {engine.runLog.input_records_count.toLocaleString()} records in{" "}
+        {engine.runLog.execution_time_ms} ms ·{" "}
+        {engine.runLog.calculation_version} · status {engine.runLog.status} ·{" "}
+        <Link to="/engine" className="text-brand hover:underline">
+          view engine config →
+        </Link>
+      </p>
     </div>
   );
 }

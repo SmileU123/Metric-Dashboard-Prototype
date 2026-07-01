@@ -8,11 +8,11 @@
 import { supabase, isSupabaseConfigured } from "@/lib/supabaseClient";
 import type {
   FilterState,
-  MetricDefinition,
+  KpiConfig,
   SurveyResponse,
   Tenant,
 } from "./types";
-import { SEED_METRICS, SEED_RESPONSES, SEED_TENANTS } from "./seed";
+import { SEED_KPI_CONFIG, SEED_RESPONSES, SEED_TENANTS } from "./seed";
 
 export const dataSource = isSupabaseConfigured ? "supabase" : "seed";
 
@@ -35,31 +35,38 @@ export async function fetchTenants(): Promise<Tenant[]> {
   return data as Tenant[];
 }
 
-// Page 1 KPIs are standardized globally (tenant_id IS NULL); a tenant may
-// override a slot with its own row. Merge so a tenant override wins per slot.
-function mergeBySlot(defs: MetricDefinition[], tenantId: string): MetricDefinition[] {
-  const bySlot = new Map<number, MetricDefinition>();
-  for (const d of defs) {
-    if (!d.is_active) continue;
-    const existing = bySlot.get(d.slot_index);
-    const isOverride = d.tenant_id === tenantId;
-    if (!existing || isOverride) bySlot.set(d.slot_index, d);
-  }
-  return [...bySlot.values()].sort((a, b) => a.slot_index - b.slot_index);
-}
+// The KPI engine config: definitions + their sources / formulas / thresholds.
+// Global KPIs (tenant_id IS NULL) plus any tenant-specific ones.
+export async function fetchKpiConfig(tenantId: string): Promise<KpiConfig> {
+  if (!supabase) return SEED_KPI_CONFIG;
 
-export async function fetchMetricDefinitions(
-  tenantId: string
-): Promise<MetricDefinition[]> {
-  if (!supabase) return mergeBySlot(SEED_METRICS, tenantId);
-  const { data, error } = await supabase
-    .from("metric_definitions")
+  const { data: definitions, error: dErr } = await supabase
+    .from("kpi_definition")
     .select("*")
     .or(`tenant_id.is.null,tenant_id.eq.${tenantId}`)
     .eq("is_active", true)
-    .order("slot_index");
-  if (error) throw error;
-  return mergeBySlot(data as MetricDefinition[], tenantId);
+    .order("display_order");
+  if (dErr) throw dErr;
+
+  const ids = (definitions ?? []).map((d) => d.id);
+  if (ids.length === 0)
+    return { definitions: [], sources: [], formulas: [], thresholds: [] };
+
+  const [sources, formulas, thresholds] = await Promise.all([
+    supabase.from("kpi_sources").select("*").in("kpi_id", ids),
+    supabase.from("kpi_formula").select("*").in("kpi_id", ids),
+    supabase.from("kpi_thresholds").select("*").in("kpi_id", ids),
+  ]);
+  if (sources.error) throw sources.error;
+  if (formulas.error) throw formulas.error;
+  if (thresholds.error) throw thresholds.error;
+
+  return {
+    definitions: definitions as KpiConfig["definitions"],
+    sources: sources.data as KpiConfig["sources"],
+    formulas: formulas.data as KpiConfig["formulas"],
+    thresholds: thresholds.data as KpiConfig["thresholds"],
+  };
 }
 
 export async function fetchResponses(

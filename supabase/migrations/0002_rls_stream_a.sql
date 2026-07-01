@@ -24,11 +24,11 @@ as $$
 $$;
 
 -- Enable RLS on every tenant-scoped table.
-alter table public.tenants            enable row level security;
-alter table public.projects           enable row level security;
-alter table public.tenant_members     enable row level security;
-alter table public.survey_responses   enable row level security;
-alter table public.metric_definitions enable row level security;
+-- (KPI engine tables enable their own RLS in 0005_kpi_engine.sql.)
+alter table public.tenants          enable row level security;
+alter table public.projects         enable row level security;
+alter table public.tenant_members   enable row level security;
+alter table public.survey_responses enable row level security;
 
 -- ---- tenants ----------------------------------------------------------------
 create policy tenants_member_read on public.tenants
@@ -66,26 +66,3 @@ create policy responses_member_insert on public.survey_responses
 create policy responses_member_update on public.survey_responses
   for update using ( tenant_id in (select public.current_tenant_ids()) )
   with check ( tenant_id in (select public.current_tenant_ids()) );
-
--- ---- metric_definitions -----------------------------------------------------
--- Standardized (global) KPI rows are readable by any authenticated user; a
--- tenant's own override rows are readable to its members.
-create policy metrics_read on public.metric_definitions
-  for select using (
-    tenant_id is null
-    or tenant_id in (select public.current_tenant_ids())
-  );
-
-create policy metrics_owner_write on public.metric_definitions
-  for all using (
-    tenant_id in (
-      select tenant_id from public.tenant_members
-      where user_id = auth.uid() and role in ('owner','analyst')
-    )
-  )
-  with check (
-    tenant_id in (
-      select tenant_id from public.tenant_members
-      where user_id = auth.uid() and role in ('owner','analyst')
-    )
-  );

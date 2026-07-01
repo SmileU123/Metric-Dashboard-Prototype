@@ -112,42 +112,12 @@ create index survey_responses_typology_idx    on public.survey_responses (respon
 create index survey_responses_submitted_idx    on public.survey_responses (submitted_at desc);
 create index survey_responses_asset_class_idx  on public.survey_responses (q2_asset_class);
 
--- -----------------------------------------------------------------------------
--- Metric definitions — drives the six Page 1 KPI slots.
---
--- Page 1 KPIs use STANDARDIZED weighting/thresholds across all tenants, so the
--- canonical set is stored GLOBALLY (tenant_id IS NULL). A tenant-specific row
--- (tenant_id set) may override a slot later if ever needed. "Defensive Design":
--- swapping the data vector behind a headline card is a config UPDATE, not code.
--- -----------------------------------------------------------------------------
-create table public.metric_definitions (
-  id             uuid primary key default gen_random_uuid(),
-  tenant_id      text references public.tenants(id) on delete cascade,  -- NULL = global standard
-  slot_index     smallint not null check (slot_index between 1 and 6),
-  metric_title   text not null,
-  -- Which response column to aggregate and how.
-  source_column  text not null,                 -- e.g. 'q4_score', 'housing_cost_to_income'
-  aggregation    text not null default 'avg'
-                   check (aggregation in ('avg','count','pct_positive','pct_compliant')),
-  unit           text not null default '',      -- e.g. '%', 'pts'
-  -- Compliance direction: does a HIGHER or LOWER value indicate good compliance?
-  direction      text not null default 'higher_better'
-                   check (direction in ('higher_better','lower_better')),
-  -- Traffic-light thresholds (interpreted per `direction`).
-  green_at       real not null default 75,
-  amber_at       real not null default 50,
-  is_active      boolean not null default true
-);
-
--- Exactly one standard (global) row per slot, and at most one override per tenant/slot.
-create unique index metric_defs_global_slot_uidx
-  on public.metric_definitions (slot_index) where tenant_id is null;
-create unique index metric_defs_tenant_slot_uidx
-  on public.metric_definitions (tenant_id, slot_index) where tenant_id is not null;
+-- NOTE: The Page 1 KPIs are driven by the configurable KPI ENGINE defined in
+-- 0005_kpi_engine.sql (KPI_Definition / KPI_Sources / KPI_Formula /
+-- KPI_Thresholds / KPI_Result / KPI_RunLog). This file only owns the raw survey
+-- capture surface that the engine reads from.
 
 comment on table public.survey_responses is
   'Canonical capture table. Q1-Q10 columns are structurally fixed; presentation is decoupled.';
-comment on table public.metric_definitions is
-  'Config-driven bindings for the six Page 1 metric slots. NULL tenant_id = standardized global KPI.';
 comment on table public.projects is
   'Developments per tenant; carries completion + retention dates for the 6-month purge policy.';
