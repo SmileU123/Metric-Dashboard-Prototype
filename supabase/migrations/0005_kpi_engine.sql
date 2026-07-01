@@ -189,7 +189,7 @@ begin
     insert into kpi_runlog
       (kpi_id, tenant_id, input_records_count, calculation_version, execution_time_ms, status)
     values (d.id, p_tenant, nrec, 'v1',
-            round(extract(epoch from clock_timestamp() - t0) * 1000, 2), 'success');
+            round((extract(epoch from clock_timestamp() - t0) * 1000)::numeric, 2), 'success');
   end loop;
 end $$;
 

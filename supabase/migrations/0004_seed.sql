@@ -53,7 +53,7 @@ begin
   foreach t in array array['northgate','meridian'] loop
     for i in 1..160 loop
       base := 45 + random() * 45;                       -- baseline 45-90
-      sscore := round((base - 60) / 30.0::numeric, 2);
+      sscore := round(((base - 60) / 30.0)::numeric, 2);
       sscore := greatest(-1, least(1, sscore + (random() - 0.5) * 0.4));
       sent := case
                 when sscore > 0.2 then 'positive'
