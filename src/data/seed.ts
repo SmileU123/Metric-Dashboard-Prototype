@@ -62,15 +62,16 @@ export const SEED_PROJECTS: Project[] = [
 ];
 
 // Six STANDARDIZED (global) KPIs — the KPI engine config (mirrors 0005_kpi_engine.sql).
+// tuple: [code, name, description, category, calculation_type, is_composite, unit]
 const KPI_DEFS: Array<
-  [string, string, string, KpiConfig["definitions"][number]["category"], KpiConfig["definitions"][number]["calculation_type"], boolean]
+  [string, string, string, string, KpiConfig["definitions"][number]["calculation_type"], boolean, string]
 > = [
-  ["LOCAL_ENV_QUALITY", "Local Health & Environmental Quality", "Composite of environmental/health quality and wellbeing signal.", "environmental", "weighted_average", true],
-  ["PR_SAFETY_ACCESS", "Public Realm Safety & Accessibility", "Perception of safety, lighting, inclusivity and access of open spaces.", "public_realm", "weighted_average", true],
-  ["SUS_MOBILITY", "Sustainable Mobility Integration", "Satisfaction with low-carbon transit, cycle storage and access.", "mobility", "direct", false],
-  ["SUSTAINABILITY", "Sustainability Performance", "Composite sustainability and environmental-quality signal.", "sustainability", "weighted_average", true],
-  ["COMMUNITY_WELLBEING", "Community Wellbeing & Belonging", "Belonging, community and overall wellbeing themes.", "community", "weighted_average", true],
-  ["HOUSING_AFFORDABILITY", "Housing Affordability", "Cost-to-income ratio inverted to a 0–100 affordability score (higher = more affordable).", "housing", "direct", false],
+  ["LOCAL_ENV_QUALITY", "Local Health & Environmental Quality", "Composite of environmental/health quality and wellbeing signal.", "environmental", "weighted_average", true, "pts"],
+  ["PR_SAFETY_ACCESS", "Public Realm Safety & Accessibility", "Perception of safety, lighting, inclusivity and access of open spaces.", "public_realm", "weighted_average", true, "pts"],
+  ["SUS_MOBILITY", "Sustainable Mobility Integration", "Satisfaction with low-carbon transit, cycle storage and access.", "mobility", "direct", false, "pts"],
+  ["SUSTAINABILITY", "Sustainability Performance", "Composite sustainability and environmental-quality signal.", "sustainability", "weighted_average", true, "pts"],
+  ["COMMUNITY_WELLBEING", "Community Wellbeing & Belonging", "Belonging, community and overall wellbeing themes.", "community", "weighted_average", true, "pts"],
+  ["HOUSING_AFFORDABILITY", "Housing Affordability", "Cost-to-income ratio inverted to a 0–100 affordability score (higher = more affordable).", "housing", "direct", false, "pts"],
 ];
 
 // source_key, weight, transformation, keyed by kpi code
@@ -102,7 +103,7 @@ const KPI_THRESH: Record<string, [number, number]> = {
 };
 
 export const SEED_KPI_CONFIG: KpiConfig = {
-  definitions: KPI_DEFS.map(([code, name, desc, cat, calc, composite], i) => ({
+  definitions: KPI_DEFS.map(([code, name, desc, cat, calc, composite, unit], i) => ({
     id: `kpi-${code}`,
     tenant_id: null,
     project_id: null,
@@ -110,6 +111,7 @@ export const SEED_KPI_CONFIG: KpiConfig = {
     kpi_name: name,
     description: desc,
     category: cat,
+    unit,
     calculation_type: calc,
     is_composite: composite,
     is_active: true,

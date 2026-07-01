@@ -101,6 +101,7 @@ export interface KpiDefinition {
   kpi_name: string;
   description: string;
   category: string;
+  unit: string; // display unit, e.g. 'pts', '%', 'score'
   calculation_type: KpiCalcType;
   is_composite: boolean;
   is_active: boolean;

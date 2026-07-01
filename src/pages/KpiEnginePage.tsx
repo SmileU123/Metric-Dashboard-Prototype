@@ -50,6 +50,9 @@ const CATEGORIES = [
   "general",
 ];
 
+const UNIT_OPTIONS = ["pts", "%", "score", "/100", ""];
+const unitLabel = (u: string) => (u === "" ? "none" : u);
+
 function Chip({ children }: { children: React.ReactNode }) {
   return (
     <span className="rounded-md bg-canvas px-2 py-0.5 text-xs font-medium text-muted">
@@ -119,6 +122,17 @@ export function KpiEnginePage() {
   const commitSource = (sourceId: string) => {
     const s = cfgRef.current.sources.find((x) => x.id === sourceId);
     if (s) saveSource(s).catch(persistFail);
+  };
+
+  const setUnit = (kpiId: string, unit: string) => {
+    setKpiConfig((p) => ({
+      ...p,
+      definitions: p.definitions.map((d) =>
+        d.id === kpiId ? { ...d, unit } : d
+      ),
+    }));
+    const d = { ...cfgRef.current.definitions.find((x) => x.id === kpiId)!, unit };
+    saveDefinition(d).catch(persistFail);
   };
 
   const toggleActive = (kpiId: string, is_active: boolean) => {
@@ -237,6 +251,20 @@ export function KpiEnginePage() {
                     </div>
                   )}
                   <div className="flex flex-col items-end gap-1">
+                    <label className="flex items-center gap-1 text-xs text-muted">
+                      unit
+                      <select
+                        className="h-7 rounded border border-line bg-surface px-1 text-xs text-ink"
+                        value={d.unit ?? ""}
+                        onChange={(e) => setUnit(d.id, e.target.value)}
+                      >
+                        {UNIT_OPTIONS.map((u) => (
+                          <option key={u} value={u}>
+                            {unitLabel(u)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                     <label className="flex items-center gap-1.5 text-xs text-muted">
                       <input
                         type="checkbox"
@@ -361,6 +389,7 @@ function AddKpiForm({
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [category, setCategory] = useState("general");
+  const [unit, setUnitField] = useState("pts");
   const [green, setGreen] = useState(70);
   const [amber, setAmber] = useState(45);
   const [rows, setRows] = useState<NewSourceRow[]>([
@@ -371,6 +400,7 @@ function AddKpiForm({
     setName("");
     setCode("");
     setCategory("general");
+    setUnitField("pts");
     setGreen(70);
     setAmber(45);
     setRows([{ key: "q4_score", weight: 1 }]);
@@ -400,6 +430,7 @@ function AddKpiForm({
         kpi_name: name.trim(),
         description: "Custom KPI added from the KPI Engine page.",
         category,
+        unit,
         calculation_type: rows.length > 1 ? "weighted_average" : "direct",
         is_composite: rows.length > 1,
         is_active: true,
@@ -478,6 +509,20 @@ function AddKpiForm({
             {CATEGORIES.map((c) => (
               <option key={c} value={c}>
                 {c}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-xs text-muted">
+          Unit
+          <select
+            className="mt-1 h-9 w-full rounded border border-line bg-surface px-2 text-sm text-ink"
+            value={unit}
+            onChange={(e) => setUnitField(e.target.value)}
+          >
+            {UNIT_OPTIONS.map((u) => (
+              <option key={u} value={u}>
+                {unitLabel(u)}
               </option>
             ))}
           </select>

@@ -23,6 +23,7 @@ create table public.kpi_definition (
   kpi_name         text not null,
   description      text not null default '',
   category         text not null default 'general',
+  unit             text not null default 'pts',   -- display unit, e.g. 'pts', '%'
   calculation_type text not null default 'weighted_average'
                      check (calculation_type in ('weighted_average','ratio','index','direct')),
   is_composite     boolean not null default false,
@@ -225,14 +226,14 @@ create policy kpi_runlog_read on public.kpi_runlog
 -- SEED: six standardized (global) KPIs with sources, formula, thresholds.
 -- =============================================================================
 insert into public.kpi_definition
-  (tenant_id, kpi_code, kpi_name, description, category, calculation_type, is_composite, display_order)
+  (tenant_id, kpi_code, kpi_name, description, category, unit, calculation_type, is_composite, display_order)
 values
-  (null,'LOCAL_ENV_QUALITY','Local Health & Environmental Quality','Composite of environmental/health quality and wellbeing signal.','environmental','weighted_average',true,1),
-  (null,'PR_SAFETY_ACCESS','Public Realm Safety & Accessibility','Perception of safety, lighting, inclusivity and access of open spaces.','public_realm','weighted_average',true,2),
-  (null,'SUS_MOBILITY','Sustainable Mobility Integration','Satisfaction with low-carbon transit, cycle storage and access.','mobility','direct',false,3),
-  (null,'SUSTAINABILITY','Sustainability Performance','Composite sustainability and environmental-quality signal.','sustainability','weighted_average',true,4),
-  (null,'COMMUNITY_WELLBEING','Community Wellbeing & Belonging','Belonging, community and overall wellbeing themes.','community','weighted_average',true,5),
-  (null,'HOUSING_AFFORDABILITY','Housing Affordability','Cost-to-income ratio inverted to a 0–100 affordability score (higher = more affordable).','housing','direct',false,6);
+  (null,'LOCAL_ENV_QUALITY','Local Health & Environmental Quality','Composite of environmental/health quality and wellbeing signal.','environmental','pts','weighted_average',true,1),
+  (null,'PR_SAFETY_ACCESS','Public Realm Safety & Accessibility','Perception of safety, lighting, inclusivity and access of open spaces.','public_realm','pts','weighted_average',true,2),
+  (null,'SUS_MOBILITY','Sustainable Mobility Integration','Satisfaction with low-carbon transit, cycle storage and access.','mobility','pts','direct',false,3),
+  (null,'SUSTAINABILITY','Sustainability Performance','Composite sustainability and environmental-quality signal.','sustainability','pts','weighted_average',true,4),
+  (null,'COMMUNITY_WELLBEING','Community Wellbeing & Belonging','Belonging, community and overall wellbeing themes.','community','pts','weighted_average',true,5),
+  (null,'HOUSING_AFFORDABILITY','Housing Affordability','Cost-to-income ratio inverted to a 0–100 affordability score (higher = more affordable).','housing','pts','direct',false,6);
 
 -- Sources (source_key = survey column; weight; transformation)
 insert into public.kpi_sources (kpi_id, source_type, source_key, weight, transformation)

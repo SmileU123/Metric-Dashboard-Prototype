@@ -151,6 +151,7 @@ export async function saveDefinition(d: KpiDefinition): Promise<void> {
         kpi_name: d.kpi_name,
         description: d.description,
         category: d.category,
+        unit: d.unit,
         is_active: d.is_active,
       })
       .eq("id", d.id)

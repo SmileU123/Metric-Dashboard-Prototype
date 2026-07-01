@@ -112,6 +112,9 @@ export function runKpiEngine(
     const value = kpiValue(sources, rows);
     const state = evaluate(value, th);
     const rounded = Math.round(value * 10) / 10;
+    const unit = d.unit ?? "";
+    const formatted =
+      unit === "%" ? `${rounded}%` : unit ? `${rounded} ${unit}` : `${rounded}`;
     return {
       // audit fields (KPI_Result)
       kpi_id: d.id,
@@ -122,10 +125,10 @@ export function runKpiEngine(
       // card/chart fields (MetricView)
       slot_index: d.display_order,
       metric_title: d.kpi_name,
-      metric_value: `${rounded}`,
+      metric_value: formatted,
       raw_value: value,
       compliance_state: state,
-      unit: "",
+      unit,
       green_at: th?.green_min ?? 75,
       amber_at: th?.amber_min ?? 50,
       direction: "higher_better",
