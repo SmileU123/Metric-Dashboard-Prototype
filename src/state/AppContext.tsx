@@ -49,6 +49,7 @@ interface AppState {
   resetFilters: () => void;
   responses: SurveyResponse[]; // already filtered by Q1-Q3
   kpiConfig: KpiConfig;
+  setKpiConfig: (updater: (prev: KpiConfig) => KpiConfig) => void;
 }
 
 const Ctx = createContext<AppState | null>(null);
@@ -122,6 +123,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     resetFilters,
     responses,
     kpiConfig,
+    setKpiConfig,
   };
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

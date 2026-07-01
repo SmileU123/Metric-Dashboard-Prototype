@@ -9,6 +9,10 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabaseClient";
 import type {
   FilterState,
   KpiConfig,
+  KpiDefinition,
+  KpiFormula,
+  KpiSource,
+  KpiThreshold,
   SurveyResponse,
   Tenant,
 } from "./types";
@@ -96,4 +100,86 @@ export async function fetchResponses(
   const { data, error } = await query.limit(2000);
   if (error) throw error;
   return data as SurveyResponse[];
+}
+
+// =============================================================================
+// KPI config writes (KPI Engine page). When Supabase is not configured these are
+// no-ops — the caller keeps the edit in session-local state so the prototype
+// still demonstrates the engine. `canPersist` tells the UI which mode it's in.
+// =============================================================================
+export const canPersist = isSupabaseConfigured;
+
+// Update returning the row, so we can detect RLS silently blocking the write
+// (0 rows affected) and tell the UI the edit didn't persist.
+async function assertUpdated(
+  promise: PromiseLike<{ data: unknown[] | null; error: unknown }>
+) {
+  const { data, error } = await promise;
+  if (error) throw error;
+  if (!data || data.length === 0)
+    throw new Error("write blocked (row-level security)");
+}
+
+export async function saveThreshold(t: KpiThreshold): Promise<void> {
+  if (!supabase) return;
+  await assertUpdated(
+    supabase
+      .from("kpi_thresholds")
+      .update({ green_min: t.green_min, amber_min: t.amber_min })
+      .eq("id", t.id)
+      .select()
+  );
+}
+
+export async function saveSource(s: KpiSource): Promise<void> {
+  if (!supabase) return;
+  await assertUpdated(
+    supabase
+      .from("kpi_sources")
+      .update({ weight: s.weight, transformation: s.transformation, is_active: s.is_active })
+      .eq("id", s.id)
+      .select()
+  );
+}
+
+export async function saveDefinition(d: KpiDefinition): Promise<void> {
+  if (!supabase) return;
+  await assertUpdated(
+    supabase
+      .from("kpi_definition")
+      .update({
+        kpi_name: d.kpi_name,
+        description: d.description,
+        category: d.category,
+        is_active: d.is_active,
+      })
+      .eq("id", d.id)
+      .select()
+  );
+}
+
+export async function createKpi(payload: {
+  definition: KpiDefinition;
+  sources: KpiSource[];
+  formula: KpiFormula;
+  threshold: KpiThreshold;
+}): Promise<void> {
+  if (!supabase) return;
+  const { definition, sources, formula, threshold } = payload;
+  const d = await supabase.from("kpi_definition").insert(definition);
+  if (d.error) throw d.error;
+  const s = await supabase.from("kpi_sources").insert(sources);
+  if (s.error) throw s.error;
+  const f = await supabase.from("kpi_formula").insert(formula);
+  if (f.error) throw f.error;
+  const t = await supabase.from("kpi_thresholds").insert(threshold);
+  if (t.error) throw t.error;
+}
+
+export async function deleteKpi(kpiId: string): Promise<void> {
+  if (!supabase) return;
+  // FK on delete cascade removes sources / formula / thresholds / results.
+  await assertUpdated(
+    supabase.from("kpi_definition").delete().eq("id", kpiId).select()
+  );
 }
