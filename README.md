@@ -106,7 +106,9 @@ supabase/migrations/
 | Brief requirement | Where it lives | Change without touching code? |
 |---|---|---|
 | **6 Page-1 metric slots** bound to `metric_title` / `metric_value` / `compliance_state` | `metric_definitions` table → `computeMetrics()` → `MetricCard` | ✅ `UPDATE metric_definitions` |
-| **Q4–Q9 thematic column headers** (e.g. "Spatial Transit Sentiment (Q4)") | `IMPACT_THEMES` in `defensiveDesign.ts` | ✅ edit one array entry |
+| **Q4–Q9 thematic column headers** (e.g. "Public Realm Safety & Access (Q5)") | `IMPACT_THEMES` in `defensiveDesign.ts` | ✅ edit one array entry |
+| **Pages 2–4 respondent cohorts** | `DEEP_DIVE_PAGES` in `defensiveDesign.ts` | ✅ edit one array entry |
+| **Metric direction (higher/lower-is-better)** | `direction` on `metric_definitions` | ✅ config value |
 | **Q1–Q3 contextual filters** | `FILTER_DEFS` in `defensiveDesign.ts` | ✅ edit one array entry |
 | **Q10 280-char + sentiment tag** | `survey_responses.q10_*` + `SentimentFeed` | ✅ hard cap enforced in DB + config |
 | **White-label theming** | `branding` JSON per tenant → CSS variables | ✅ data change |
@@ -121,22 +123,43 @@ wording can change post-pitch with zero migration.
 
 ### Core tables (`0001_init_multitenant.sql`)
 
-- **`tenants`** — white-label clients (`id` slug, `name`, `branding` JSON).
+- **`tenants`** — white-label developer clients (`id` slug, `name`, `branding`).
+- **`projects`** — developments per tenant. Carries `completion_date` +
+  `retention_expires_at` for the **6-month post-completion purge policy**
+  (access granted during report creation, revoked 6 months after completion).
 - **`tenant_members`** — `(tenant_id, user_id, role)`; backbone of RLS.
 - **`survey_responses`** — canonical capture table. `Q1–Q3` contextual columns,
-  `Q4–Q9` impact scores (0–100), `Q10` text (≤280, DB-enforced) + sentiment.
-  Carries `source` (`field_pwa` | `digital_public`) and `utm` JSON for the
-  Phase 2 channels.
+  `Q4–Q9` impact scores (0–100), `housing_cost_to_income` (%), `Q10` text (≤280,
+  DB-enforced) + sentiment. Also carries **`respondent_typology`**
+  (`construction_adjacent` | `resident_completed`) and **`delivery_model`**
+  (`build_to_rent` | `build_to_sell`) — these drive the Pages 2–4 cohort
+  screens — plus `source` and `utm` for the Phase 2 channels.
 - **`metric_definitions`** — config rows binding each Page-1 slot to a
-  `source_column` + `aggregation` + traffic-light thresholds.
+  `source_column` + `aggregation` + `direction` (higher/lower-is-better) +
+  thresholds. **Standardized KPIs are global (`tenant_id IS NULL`)**; a tenant
+  may override a slot with its own row.
+
+### KPIs & cohorts (client-confirmed)
+
+- **Page 1 — 6 standardized KPIs** (identical weighting across tenants): Local
+  Health & Environmental Quality, Public Realm Safety & Accessibility,
+  Sustainable Mobility Integration, Sustainability Performance, Community
+  Wellbeing & Belonging, and **Housing Cost-to-Income Ratio** (lower-is-better,
+  demonstrating the `direction` flag). *Provisional — client is refining.*
+- **Pages 2–4 — respondent cohorts**: Construction-Adjacent · Completed Build-to-Rent
+  · Completed Build-to-Sell.
+- **Benchmarking is out of scope** for now (no cross-portfolio data yet); clients
+  see only their own project data. Stream B remains a Phase-3 foundation.
 
 ### Client → backend calls (`src/data/repository.ts`)
 
 | Function | Supabase call | Seed fallback |
 |---|---|---|
 | `fetchTenants()` | `from('tenants').select(...)` | `SEED_TENANTS` |
-| `fetchMetricDefinitions(tenantId)` | `from('metric_definitions')…eq(tenant_id)` | filtered `SEED_METRICS` |
+| `fetchMetricDefinitions(tenantId)` | `from('metric_definitions').or(tenant_id.is.null,tenant_id.eq.X)` → merge by slot | merged `SEED_METRICS` |
 | `fetchResponses(tenantId, filters)` | `from('survey_responses')…eq(...).eq(Q1–Q3)` | filtered `SEED_RESPONSES` |
+
+Cohort segmentation for Pages 2–4 is applied in the page via `matchesCohort()`.
 
 Metrics are computed in `src/data/metrics.ts` (same logic for both sources), so
 the live and seed paths are visually identical.

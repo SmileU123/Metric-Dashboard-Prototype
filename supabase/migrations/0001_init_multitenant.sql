@@ -2,20 +2,26 @@
 -- 0001_init_multitenant.sql
 -- Core multi-tenant schema for the Data Monitoring Platform (Phase 1).
 --
+-- Domain: property-development impact surveys. Tenants are developer clients;
+-- each has one or more development PROJECTS; each project collects survey
+-- responses from distinct respondent TYPOLOGIES (construction-adjacent residents
+-- vs. residents of completed Build-to-Rent / Build-to-Sell buildings).
+--
 -- Design notes:
 --  * Survey questions Q1-Q10 are STRUCTURALLY FIXED columns (per the brief's
 --    "Core Architectural Pillars"). Their *presentation* (titles, theme labels,
 --    metric bindings) lives in config tables / the frontend, NOT in column names,
 --    so survey wording can change post-pitch without a migration.
 --  * Q1-Q3  -> contextual filters (demographic / asset class / tenure)
---  * Q4-Q9  -> generalized impact variables (0-100 sentiment scores)
+--  * Q4-Q9  -> generalized impact variables (0-100 thematic scores)
 --  * Q10    -> qualitative free text (<=280 chars) + sentiment tag
+--  * housing_cost_to_income -> quantitative %, feeds the "lower-is-better" KPI.
 -- =============================================================================
 
 create extension if not exists "pgcrypto";
 
 -- -----------------------------------------------------------------------------
--- Tenants (white-label clients)
+-- Tenants (white-label developer clients)
 -- -----------------------------------------------------------------------------
 create table public.tenants (
   id          text primary key,                 -- slug, e.g. 'northgate'
@@ -24,6 +30,24 @@ create table public.tenants (
   branding    jsonb not null default '{}'::jsonb,
   created_at  timestamptz not null default now()
 );
+
+-- -----------------------------------------------------------------------------
+-- Projects (developments) — a tenant owns many. Retention is tracked here:
+-- access is intended during report creation and for 6 months after completion,
+-- after which the tenant's granular data should be exported + purged (Phase 3).
+-- -----------------------------------------------------------------------------
+create table public.projects (
+  id               uuid primary key default gen_random_uuid(),
+  tenant_id        text not null references public.tenants(id) on delete cascade,
+  name             text not null,
+  status           text not null default 'active'
+                     check (status in ('active','in_report','completed','archived')),
+  completion_date        date,   -- when the development/report completes
+  retention_expires_at   date,   -- typically completion_date + 6 months
+  created_at       timestamptz not null default now()
+);
+
+create index projects_tenant_idx on public.projects (tenant_id);
 
 -- -----------------------------------------------------------------------------
 -- Tenant membership — maps Supabase auth users to the tenants they may read.
@@ -43,6 +67,14 @@ create table public.tenant_members (
 create table public.survey_responses (
   id            uuid primary key default gen_random_uuid(),
   tenant_id     text not null references public.tenants(id) on delete cascade,
+  project_id    uuid references public.projects(id) on delete cascade,
+
+  -- Respondent typology — drives the Pages 2-4 deep-dive segmentation.
+  respondent_typology text not null default 'resident_completed'
+    check (respondent_typology in ('construction_adjacent','resident_completed')),
+  -- Delivery model applies to completed-building residents (else null).
+  delivery_model text
+    check (delivery_model in ('build_to_rent','build_to_sell')),
 
   -- Provenance: which channel produced the row (Phase 2 wires these for real).
   source        text not null default 'field_pwa'
@@ -57,7 +89,7 @@ create table public.survey_responses (
   q2_asset_class  text,    -- asset class selector
   q3_tenure       text,    -- tenure matrix bucket
 
-  -- Q4-Q9 : generalized impact variables (0-100). Thematic, not literal text. ----
+  -- Q4-Q9 : generalized impact variables (0-100 thematic scores) ----------------
   q4_score  smallint check (q4_score between 0 and 100),
   q5_score  smallint check (q5_score between 0 and 100),
   q6_score  smallint check (q6_score between 0 and 100),
@@ -65,40 +97,57 @@ create table public.survey_responses (
   q8_score  smallint check (q8_score between 0 and 100),
   q9_score  smallint check (q9_score between 0 and 100),
 
+  -- Quantitative: housing cost-to-income ratio (%). Lower is better.
+  housing_cost_to_income real check (housing_cost_to_income between 0 and 100),
+
   -- Q10 : qualitative NLP engine -------------------------------------------------
   q10_text         text check (char_length(q10_text) <= 280),
   q10_sentiment    text check (q10_sentiment in ('positive','neutral','negative')),
   q10_sentiment_score real check (q10_sentiment_score between -1 and 1)
 );
 
-create index survey_responses_tenant_idx       on public.survey_responses (tenant_id);
-create index survey_responses_submitted_idx     on public.survey_responses (submitted_at desc);
-create index survey_responses_asset_class_idx   on public.survey_responses (q2_asset_class);
+create index survey_responses_tenant_idx     on public.survey_responses (tenant_id);
+create index survey_responses_project_idx     on public.survey_responses (project_id);
+create index survey_responses_typology_idx    on public.survey_responses (respondent_typology, delivery_model);
+create index survey_responses_submitted_idx    on public.survey_responses (submitted_at desc);
+create index survey_responses_asset_class_idx  on public.survey_responses (q2_asset_class);
 
 -- -----------------------------------------------------------------------------
 -- Metric definitions — drives the six Page 1 KPI slots.
--- "Defensive Design": a metric is a row here, so swapping the data vector behind
--- a headline card is a config change (UPDATE), never a code change.
+--
+-- Page 1 KPIs use STANDARDIZED weighting/thresholds across all tenants, so the
+-- canonical set is stored GLOBALLY (tenant_id IS NULL). A tenant-specific row
+-- (tenant_id set) may override a slot later if ever needed. "Defensive Design":
+-- swapping the data vector behind a headline card is a config UPDATE, not code.
 -- -----------------------------------------------------------------------------
 create table public.metric_definitions (
   id             uuid primary key default gen_random_uuid(),
-  tenant_id      text not null references public.tenants(id) on delete cascade,
+  tenant_id      text references public.tenants(id) on delete cascade,  -- NULL = global standard
   slot_index     smallint not null check (slot_index between 1 and 6),
   metric_title   text not null,
   -- Which response column to aggregate and how.
-  source_column  text not null,                 -- e.g. 'q4_score'
+  source_column  text not null,                 -- e.g. 'q4_score', 'housing_cost_to_income'
   aggregation    text not null default 'avg'
                    check (aggregation in ('avg','count','pct_positive','pct_compliant')),
   unit           text not null default '',      -- e.g. '%', 'pts'
-  -- Traffic-light thresholds: value >= green_at -> green; >= amber_at -> amber; else red.
+  -- Compliance direction: does a HIGHER or LOWER value indicate good compliance?
+  direction      text not null default 'higher_better'
+                   check (direction in ('higher_better','lower_better')),
+  -- Traffic-light thresholds (interpreted per `direction`).
   green_at       real not null default 75,
   amber_at       real not null default 50,
-  is_active      boolean not null default true,
-  unique (tenant_id, slot_index)
+  is_active      boolean not null default true
 );
 
--- Convenience: keep updated rows honest.
+-- Exactly one standard (global) row per slot, and at most one override per tenant/slot.
+create unique index metric_defs_global_slot_uidx
+  on public.metric_definitions (slot_index) where tenant_id is null;
+create unique index metric_defs_tenant_slot_uidx
+  on public.metric_definitions (tenant_id, slot_index) where tenant_id is not null;
+
 comment on table public.survey_responses is
   'Canonical capture table. Q1-Q10 columns are structurally fixed; presentation is decoupled.';
 comment on table public.metric_definitions is
-  'Config-driven bindings for the six Page 1 headline metric slots (zero-code reassignment).';
+  'Config-driven bindings for the six Page 1 metric slots. NULL tenant_id = standardized global KPI.';
+comment on table public.projects is
+  'Developments per tenant; carries completion + retention dates for the 6-month purge policy.';

@@ -39,6 +39,12 @@ function complianceState(
   def: MetricDefinition,
   value: number
 ): ComplianceState {
+  if (def.direction === "lower_better") {
+    // e.g. Housing Cost-to-Income Ratio: a LOWER value is healthier.
+    if (value <= def.green_at) return "green";
+    if (value <= def.amber_at) return "amber";
+    return "red";
+  }
   if (value >= def.green_at) return "green";
   if (value >= def.amber_at) return "amber";
   return "red";

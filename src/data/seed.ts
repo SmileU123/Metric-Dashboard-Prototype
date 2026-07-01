@@ -3,9 +3,12 @@
 // the demo looks identical on every reload.
 
 import type {
+  DeliveryModel,
   MetricDefinition,
-  SurveyResponse,
+  Project,
+  RespondentTypology,
   Sentiment,
+  SurveyResponse,
   Tenant,
 } from "./types";
 import { FILTER_DEFS } from "@/config/defensiveDesign";
@@ -13,41 +16,74 @@ import { FILTER_DEFS } from "@/config/defensiveDesign";
 export const SEED_TENANTS: Tenant[] = [
   {
     id: "northgate",
-    name: "Northgate Holdings",
+    name: "Northgate Developments",
     branding: { brand: "37 99 235", logoText: "Northgate" },
   },
   {
     id: "meridian",
-    name: "Meridian Group",
+    name: "Meridian Urban",
     branding: { brand: "13 148 136", logoText: "Meridian" },
   },
 ];
 
-const metricRows = (tenant_id: string): MetricDefinition[] =>
-  [
-    ["Overall Compliance Index", "q4_score", "avg", "pts", 75, 50],
-    ["Spatial Transit Sentiment", "q5_score", "avg", "pts", 70, 45],
-    ["Service Responsiveness", "q6_score", "avg", "pts", 72, 48],
-    ["Positive Sentiment Rate", "q10", "pct_positive", "%", 60, 40],
-    ["Total Responses", "id", "count", "", 1, 1],
-    ["Wellbeing Score", "q9_score", "avg", "pts", 68, 45],
-  ].map((r, i) => ({
-    id: `${tenant_id}-m${i + 1}`,
-    tenant_id,
-    slot_index: i + 1,
-    metric_title: r[0] as string,
-    source_column: r[1] as MetricDefinition["source_column"],
-    aggregation: r[2] as MetricDefinition["aggregation"],
-    unit: r[3] as string,
-    green_at: r[4] as number,
-    amber_at: r[5] as number,
-    is_active: true,
-  }));
-
-export const SEED_METRICS: MetricDefinition[] = [
-  ...metricRows("northgate"),
-  ...metricRows("meridian"),
+export const SEED_PROJECTS: Project[] = [
+  {
+    id: "northgate-p1",
+    tenant_id: "northgate",
+    name: "Canalside Quarter",
+    status: "in_report",
+    completion_date: "2026-05-01",
+    retention_expires_at: "2026-11-01",
+  },
+  {
+    id: "northgate-p2",
+    tenant_id: "northgate",
+    name: "Elm Street Regen",
+    status: "active",
+    completion_date: null,
+    retention_expires_at: null,
+  },
+  {
+    id: "meridian-p1",
+    tenant_id: "meridian",
+    name: "Harbour View Phase 1",
+    status: "completed",
+    completion_date: "2026-03-15",
+    retention_expires_at: "2026-09-15",
+  },
+  {
+    id: "meridian-p2",
+    tenant_id: "meridian",
+    name: "Parkgate Mews",
+    status: "active",
+    completion_date: null,
+    retention_expires_at: null,
+  },
 ];
+
+// Six STANDARDIZED (global) KPI slots — one set shared by all tenants.
+export const SEED_METRICS: MetricDefinition[] = (
+  [
+    ["Local Health & Environmental Quality", "q4_score", "avg", "pts", "higher_better", 75, 50],
+    ["Public Realm Safety & Accessibility", "q5_score", "avg", "pts", "higher_better", 70, 45],
+    ["Sustainable Mobility Integration", "q6_score", "avg", "pts", "higher_better", 70, 45],
+    ["Sustainability Performance", "q7_score", "avg", "pts", "higher_better", 72, 48],
+    ["Community Wellbeing & Belonging", "q8_score", "avg", "pts", "higher_better", 68, 45],
+    ["Housing Cost-to-Income Ratio", "housing_cost_to_income", "avg", "%", "lower_better", 35, 45],
+  ] as const
+).map((r, i) => ({
+  id: `global-m${i + 1}`,
+  tenant_id: null,
+  slot_index: i + 1,
+  metric_title: r[0],
+  source_column: r[1] as MetricDefinition["source_column"],
+  aggregation: r[2] as MetricDefinition["aggregation"],
+  unit: r[3],
+  direction: r[4] as MetricDefinition["direction"],
+  green_at: r[5],
+  amber_at: r[6],
+  is_active: true,
+}));
 
 // --- deterministic PRNG (mulberry32) -----------------------------------------
 function mulberry32(seed: number) {
@@ -62,9 +98,9 @@ function mulberry32(seed: number) {
 
 const BLURBS: Record<Sentiment, string[]> = {
   positive: [
-    "Really happy with how responsive the team has been lately.",
-    "Transit access has improved a lot this quarter.",
-    "Great communication and the facilities feel well maintained.",
+    "Really happy with how responsive the on-site team has been lately.",
+    "Transit access and cycle storage have improved a lot this quarter.",
+    "Great communication and the public spaces feel safe and well kept.",
   ],
   neutral: [
     "Things are fine, nothing major to report this period.",
@@ -72,9 +108,9 @@ const BLURBS: Record<Sentiment, string[]> = {
     "Average experience overall, some ups and some downs.",
   ],
   negative: [
-    "Maintenance requests are taking far too long to resolve.",
-    "Noise and access issues have gotten worse recently.",
-    "Communication has been poor and unclear this month.",
+    "Construction noise and dust have gotten worse recently.",
+    "Lighting around the open spaces feels poor after dark.",
+    "Communication about works has been unclear this month.",
   ],
 };
 
@@ -86,6 +122,7 @@ function buildResponses(): SurveyResponse[] {
   const now = Date.now();
   SEED_TENANTS.forEach((tenant, ti) => {
     const rand = mulberry32(1000 + ti * 99);
+    const projects = SEED_PROJECTS.filter((p) => p.tenant_id === tenant.id);
     for (let i = 0; i < 160; i++) {
       const base = 45 + rand() * 45;
       let sscore = (base - 60) / 30 + (rand() - 0.5) * 0.4;
@@ -95,9 +132,22 @@ function buildResponses(): SurveyResponse[] {
       const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
       const pick = <T>(arr: T[]) => arr[Math.floor(rand() * arr.length)];
 
+      const isConstruction = rand() < 0.4;
+      const typology: RespondentTypology = isConstruction
+        ? "construction_adjacent"
+        : "resident_completed";
+      const delivery: DeliveryModel | null = isConstruction
+        ? null
+        : rand() < 0.5
+          ? "build_to_rent"
+          : "build_to_sell";
+
       rows.push({
         id: `${tenant.id}-r${i}`,
         tenant_id: tenant.id,
+        project_id: pick(projects).id,
+        respondent_typology: typology,
+        delivery_model: delivery,
         source: rand() < 0.65 ? "field_pwa" : "digital_public",
         submitted_at: new Date(now - rand() * 180 * 864e5).toISOString(),
         q1_demographic: pick(opt("q1_demographic")),
@@ -109,6 +159,8 @@ function buildResponses(): SurveyResponse[] {
         q7_score: clamp(base + (rand() - 0.5) * 26),
         q8_score: clamp(base + (rand() - 0.5) * 20),
         q9_score: clamp(base + (rand() - 0.5) * 18),
+        housing_cost_to_income:
+          Math.round((52 - (base - 45) * 0.25 + (rand() - 0.5) * 8) * 10) / 10,
         q10_text: pick(BLURBS[sentiment]),
         q10_sentiment: sentiment,
         q10_sentiment_score: Math.round(sscore * 100) / 100,

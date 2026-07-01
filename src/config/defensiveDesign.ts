@@ -10,9 +10,16 @@
 //  * Q4-Q9  -> IMPACT variables    (thematic table headers, e.g. the brief's
 //                                    "Spatial Transit Sentiment (Q4)")
 //  * Q10    -> QUALITATIVE NLP      (280-char text + sentiment tag)
+//
+// Pages 2-4 are segmented by respondent TYPOLOGY (construction-adjacent vs
+// completed-building BTR/BTS residents), not by theme — see DEEP_DIVE_PAGES.
 // =============================================================================
 
-import type { SurveyResponse } from "@/data/types";
+import type {
+  DeliveryModel,
+  RespondentTypology,
+  SurveyResponse,
+} from "@/data/types";
 
 export type ImpactColumn =
   | "q4_score"
@@ -31,45 +38,64 @@ export interface ImpactTheme {
 
 // ---- Q4-Q9: thematic column headers (abstracted from question strings) -------
 export const IMPACT_THEMES: ImpactTheme[] = [
-  { column: "q4_score", code: "Q4", header: "Spatial Transit Sentiment" },
-  { column: "q5_score", code: "Q5", header: "Amenity & Facilities" },
-  { column: "q6_score", code: "Q6", header: "Service Responsiveness" },
-  { column: "q7_score", code: "Q7", header: "Safety & Security" },
+  { column: "q4_score", code: "Q4", header: "Environmental & Health Quality" },
+  { column: "q5_score", code: "Q5", header: "Public Realm Safety & Access" },
+  { column: "q6_score", code: "Q6", header: "Sustainable Mobility" },
+  { column: "q7_score", code: "Q7", header: "Sustainability & Energy" },
   { column: "q8_score", code: "Q8", header: "Community & Belonging" },
-  { column: "q9_score", code: "Q9", header: "Wellbeing & Environment" },
+  { column: "q9_score", code: "Q9", header: "Wellbeing & Amenity" },
 ];
+
+export const ALL_IMPACT_COLUMNS: ImpactColumn[] = IMPACT_THEMES.map(
+  (t) => t.column
+);
 
 export const impactHeader = (t: ImpactTheme) => `${t.header} (${t.code})`;
 
-// ---- Pages 2-4: each deep-dive screen renders a subset of the impact themes ---
-// (typology deep-dive screens; grouping is config, so screens re-bind freely).
+// ---- Pages 2-4: typology deep-dive screens ----------------------------------
+// Each screen is the SAME table component filtered to one respondent cohort.
 export interface DeepDivePage {
   slug: string;
   title: string;
   description: string;
+  typology: RespondentTypology;
+  delivery?: DeliveryModel; // narrows completed-building residents
   columns: ImpactColumn[];
 }
 
 export const DEEP_DIVE_PAGES: DeepDivePage[] = [
   {
-    slug: "mobility",
-    title: "Mobility & Access",
-    description: "Spatial transit and amenity signal across captured records.",
-    columns: ["q4_score", "q5_score"],
+    slug: "construction",
+    title: "Construction-Adjacent",
+    description:
+      "Responses from residents living adjacent to active construction sites.",
+    typology: "construction_adjacent",
+    columns: ALL_IMPACT_COLUMNS,
   },
   {
-    slug: "service",
-    title: "Service & Safety",
-    description: "Operational responsiveness and perceived safety.",
-    columns: ["q6_score", "q7_score"],
+    slug: "build-to-rent",
+    title: "Completed · Build to Rent",
+    description:
+      "Residents of completed Build-to-Rent buildings across the portfolio.",
+    typology: "resident_completed",
+    delivery: "build_to_rent",
+    columns: ALL_IMPACT_COLUMNS,
   },
   {
-    slug: "wellbeing",
-    title: "Community & Wellbeing",
-    description: "Belonging, environment and overall wellbeing themes.",
-    columns: ["q8_score", "q9_score"],
+    slug: "build-to-sell",
+    title: "Completed · Build to Sell",
+    description:
+      "Residents of completed Build-to-Sell buildings across the portfolio.",
+    typology: "resident_completed",
+    delivery: "build_to_sell",
+    columns: ALL_IMPACT_COLUMNS,
   },
 ];
+
+// Predicate: does a response belong to this deep-dive cohort?
+export const matchesCohort = (r: SurveyResponse, page: DeepDivePage): boolean =>
+  r.respondent_typology === page.typology &&
+  (page.delivery === undefined || r.delivery_model === page.delivery);
 
 // ---- Q1-Q3: contextual filters ----------------------------------------------
 export interface FilterDef {

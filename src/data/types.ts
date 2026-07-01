@@ -6,6 +6,11 @@ export type ComplianceState = "green" | "amber" | "red";
 export type Sentiment = "positive" | "neutral" | "negative";
 export type ResponseSource = "field_pwa" | "digital_public";
 export type Aggregation = "avg" | "count" | "pct_positive" | "pct_compliant";
+export type MetricDirection = "higher_better" | "lower_better";
+
+// Respondent typology — drives the Pages 2-4 deep-dive segmentation.
+export type RespondentTypology = "construction_adjacent" | "resident_completed";
+export type DeliveryModel = "build_to_rent" | "build_to_sell";
 
 export interface Tenant {
   id: string;
@@ -16,9 +21,23 @@ export interface Tenant {
   };
 }
 
+export interface Project {
+  id: string;
+  tenant_id: string;
+  name: string;
+  status: "active" | "in_report" | "completed" | "archived";
+  completion_date: string | null;
+  retention_expires_at: string | null;
+}
+
 export interface SurveyResponse {
   id: string;
   tenant_id: string;
+  project_id: string | null;
+
+  respondent_typology: RespondentTypology;
+  delivery_model: DeliveryModel | null;
+
   source: ResponseSource;
   submitted_at: string; // ISO
 
@@ -35,6 +54,9 @@ export interface SurveyResponse {
   q8_score: number;
   q9_score: number;
 
+  // Quantitative: housing cost-to-income ratio (%). Lower is better.
+  housing_cost_to_income: number;
+
   // Q10 qualitative NLP
   q10_text: string;
   q10_sentiment: Sentiment;
@@ -44,12 +66,13 @@ export interface SurveyResponse {
 // Config-driven binding for a Page 1 headline metric slot.
 export interface MetricDefinition {
   id: string;
-  tenant_id: string;
+  tenant_id: string | null; // null = standardized global KPI
   slot_index: number; // 1..6
   metric_title: string;
   source_column: keyof SurveyResponse | "id";
   aggregation: Aggregation;
   unit: string;
+  direction: MetricDirection;
   green_at: number;
   amber_at: number;
   is_active: boolean;

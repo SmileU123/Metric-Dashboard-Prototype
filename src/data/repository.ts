@@ -35,18 +35,31 @@ export async function fetchTenants(): Promise<Tenant[]> {
   return data as Tenant[];
 }
 
+// Page 1 KPIs are standardized globally (tenant_id IS NULL); a tenant may
+// override a slot with its own row. Merge so a tenant override wins per slot.
+function mergeBySlot(defs: MetricDefinition[], tenantId: string): MetricDefinition[] {
+  const bySlot = new Map<number, MetricDefinition>();
+  for (const d of defs) {
+    if (!d.is_active) continue;
+    const existing = bySlot.get(d.slot_index);
+    const isOverride = d.tenant_id === tenantId;
+    if (!existing || isOverride) bySlot.set(d.slot_index, d);
+  }
+  return [...bySlot.values()].sort((a, b) => a.slot_index - b.slot_index);
+}
+
 export async function fetchMetricDefinitions(
   tenantId: string
 ): Promise<MetricDefinition[]> {
-  if (!supabase) return SEED_METRICS.filter((m) => m.tenant_id === tenantId);
+  if (!supabase) return mergeBySlot(SEED_METRICS, tenantId);
   const { data, error } = await supabase
     .from("metric_definitions")
     .select("*")
-    .eq("tenant_id", tenantId)
+    .or(`tenant_id.is.null,tenant_id.eq.${tenantId}`)
     .eq("is_active", true)
     .order("slot_index");
   if (error) throw error;
-  return data as MetricDefinition[];
+  return mergeBySlot(data as MetricDefinition[], tenantId);
 }
 
 export async function fetchResponses(
