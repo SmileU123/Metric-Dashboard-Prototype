@@ -78,13 +78,19 @@ export interface MetricDefinition {
   is_active: boolean;
 }
 
-// A computed metric ready to render in a card.
+// A computed metric ready to render in a card (+ everything the charts need).
 export interface MetricView {
   slot_index: number;
   metric_title: string;
   metric_value: string; // formatted, with unit
   raw_value: number;
   compliance_state: ComplianceState;
+  unit: string;
+  green_at: number;
+  amber_at: number;
+  direction: MetricDirection;
+  scale_max: number;
+  trend: { label: string; value: number }[]; // last 6 months
 }
 
 // The Q1-Q3 filter selection that drives every screen.

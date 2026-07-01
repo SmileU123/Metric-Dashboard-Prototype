@@ -1,14 +1,70 @@
 // Page 1 — the headline cross-portfolio metric grid.
 // Six identical, decoupled MetricCard slots driven entirely by config
-// (metric_definitions) + computed values. Reassigning a metric is a config
-// change; this page never changes.
+// (metric_definitions + KPI_VIZ) + computed values. Each KPI renders a best-fit
+// chart. Reassigning a metric or its chart is a config change; this page doesn't.
 
 import { useMemo } from "react";
-import { PageHeader } from "@/components/ui";
+import { PageHeader, Card } from "@/components/ui";
 import { MetricCard, MetricCardSkeleton } from "@/components/MetricCard";
 import { SentimentSummary } from "@/components/SentimentFeed";
 import { useApp } from "@/state/AppContext";
 import { computeMetrics } from "@/data/metrics";
+import { KPI_VIZ } from "@/config/defensiveDesign";
+import { cn } from "@/lib/cn";
+import type { SurveyResponse } from "@/data/types";
+
+function cohortCounts(rows: SurveyResponse[]) {
+  const c = { construction: 0, btr: 0, bts: 0 };
+  for (const r of rows) {
+    if (r.respondent_typology === "construction_adjacent") c.construction++;
+    else if (r.delivery_model === "build_to_rent") c.btr++;
+    else if (r.delivery_model === "build_to_sell") c.bts++;
+  }
+  return c;
+}
+
+function StatTile({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+  return (
+    <div className="min-w-[7rem]">
+      <p className="text-xs font-medium uppercase tracking-wide text-muted">{label}</p>
+      <p className={cn("mt-1 text-2xl font-semibold", accent ? "text-brand" : "text-ink")}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function CohortMix({ rows }: { rows: SurveyResponse[] }) {
+  const c = cohortCounts(rows);
+  const total = rows.length || 1;
+  const bars = [
+    { label: "Construction-Adjacent", n: c.construction, color: "rgb(var(--brand))" },
+    { label: "Build to Rent", n: c.btr, color: "rgb(var(--state-green))" },
+    { label: "Build to Sell", n: c.bts, color: "rgb(var(--state-amber))" },
+  ];
+  return (
+    <Card className="p-5">
+      <p className="text-sm font-medium text-muted">Respondent cohort mix</p>
+      <div className="mt-4 space-y-3">
+        {bars.map((b) => (
+          <div key={b.label} className="flex items-center gap-3">
+            <span className="w-40 shrink-0 text-xs text-muted">{b.label}</span>
+            <div className="h-3 flex-1 overflow-hidden rounded-full bg-line/70">
+              <div
+                className="h-full rounded-full"
+                style={{ width: `${(100 * b.n) / total}%`, backgroundColor: b.color }}
+              />
+            </div>
+            <span className="w-20 shrink-0 text-right text-xs tabular-nums text-ink">
+              <span className="font-semibold">{Math.round((100 * b.n) / total)}%</span>
+              <span className="text-muted"> · {b.n}</span>
+            </span>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
 
 export function OverviewPage() {
   const { metricDefs, responses, loading, tenant } = useApp();
@@ -18,29 +74,49 @@ export function OverviewPage() {
     [metricDefs, responses]
   );
 
+  const positivePct = useMemo(() => {
+    if (responses.length === 0) return 0;
+    return Math.round(
+      (100 * responses.filter((r) => r.q10_sentiment === "positive").length) /
+        responses.length
+    );
+  }, [responses]);
+
   return (
     <div>
       <PageHeader
         title="Portfolio Metrics"
-        subtitle={`Cross-portfolio headline indicators${
-          tenant ? ` · ${tenant.name}` : ""
-        }`}
+        subtitle={`Standardized cross-portfolio KPIs${tenant ? ` · ${tenant.name}` : ""}`}
       />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      {/* Summary hero */}
+      <Card className="mb-6 bg-gradient-to-r from-brand/5 to-transparent p-5">
+        <div className="flex flex-wrap items-center gap-8">
+          <StatTile label="Responses" value={responses.length.toLocaleString()} accent />
+          <StatTile label="Positive sentiment" value={`${positivePct}%`} />
+          <StatTile
+            label="KPIs on track"
+            value={`${metrics.filter((m) => m.compliance_state === "green").length}/${metrics.length || 6}`}
+          />
+          <StatTile
+            label="At risk"
+            value={`${metrics.filter((m) => m.compliance_state === "red").length}`}
+          />
+        </div>
+      </Card>
+
+      {/* Varied KPI grid */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {loading
           ? Array.from({ length: 6 }).map((_, i) => <MetricCardSkeleton key={i} />)
           : metrics.map((m) => (
-              <MetricCard
-                key={m.slot_index}
-                metric_title={m.metric_title}
-                metric_value={m.metric_value}
-                compliance_state={m.compliance_state}
-              />
+              <MetricCard key={m.slot_index} metric={m} viz={KPI_VIZ[m.slot_index] ?? "ring"} />
             ))}
       </div>
 
-      <div className="mt-6">
+      {/* Secondary analytics */}
+      <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <CohortMix rows={responses} />
         <SentimentSummary rows={responses} />
       </div>
     </div>

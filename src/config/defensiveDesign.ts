@@ -126,6 +126,19 @@ export const FILTER_DEFS: FilterDef[] = [
   },
 ];
 
+// ---- Page 1 visualization per KPI slot --------------------------------------
+// Chart type is presentation config too: swap a slot's visual without code.
+export type KpiViz = "gauge" | "ring" | "zonebar" | "columns" | "area" | "bartarget";
+
+export const KPI_VIZ: Record<number, KpiViz> = {
+  1: "gauge",
+  2: "ring",
+  3: "zonebar",
+  4: "columns",
+  5: "area",
+  6: "bartarget", // Housing Cost-to-Income (lower-is-better) — bar vs. target
+};
+
 // ---- Q10: qualitative NLP engine --------------------------------------------
 export const QUALITATIVE = {
   column: "q10_text" as const,

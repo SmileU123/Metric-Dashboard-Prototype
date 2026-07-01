@@ -56,6 +56,36 @@ function format(def: MetricDefinition, value: number): string {
   return def.unit === "%" ? `${rounded}%` : `${rounded}${def.unit ? " " + def.unit : ""}`;
 }
 
+// Last 6 calendar months of the metric, for trend charts.
+export function computeMetricTrend(
+  def: MetricDefinition,
+  rows: SurveyResponse[]
+): { label: string; value: number }[] {
+  const base = new Date();
+  const months = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(base.getFullYear(), base.getMonth() - (5 - i), 1);
+    return d;
+  });
+  return months.map((d) => {
+    const bucket = rows.filter((r) => {
+      const rd = new Date(r.submitted_at);
+      return (
+        rd.getFullYear() === d.getFullYear() && rd.getMonth() === d.getMonth()
+      );
+    });
+    return {
+      label: d.toLocaleString(undefined, { month: "short" }),
+      value: bucket.length ? aggregate(def, bucket) : 0,
+    };
+  });
+}
+
+function scaleMaxFor(def: MetricDefinition): number {
+  if (def.source_column === "housing_cost_to_income") return 60;
+  if (def.aggregation === "count") return 100;
+  return 100;
+}
+
 export function computeMetric(
   def: MetricDefinition,
   rows: SurveyResponse[]
@@ -69,6 +99,12 @@ export function computeMetric(
     // "Total Responses" style count metrics are informational, not graded.
     compliance_state:
       def.aggregation === "count" ? "green" : complianceState(def, raw),
+    unit: def.unit,
+    green_at: def.green_at,
+    amber_at: def.amber_at,
+    direction: def.direction,
+    scale_max: scaleMaxFor(def),
+    trend: computeMetricTrend(def, rows),
   };
 }
 

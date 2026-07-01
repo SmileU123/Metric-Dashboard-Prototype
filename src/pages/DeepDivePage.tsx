@@ -8,7 +8,8 @@ import { useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { PageHeader, Card } from "@/components/ui";
 import { CaptureFeedTable } from "@/components/CaptureFeedTable";
-import { ScoreBadge } from "@/components/ScoreBadge";
+import { scoreState } from "@/components/ScoreBadge";
+import { Ring } from "@/components/charts";
 import { useApp } from "@/state/AppContext";
 import {
   DEEP_DIVE_PAGES,
@@ -47,17 +48,18 @@ export function DeepDivePage() {
 
       {/* Per-theme averages — abstracted headers, never literal question text. */}
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {themes.map((t) => (
-          <Card key={t.column} className="flex items-center justify-between p-5">
-            <div>
-              <p className="text-sm font-medium text-muted">
-                {impactHeader(t)}
-              </p>
-              <p className="mt-1 text-xs text-muted/70">Cohort mean</p>
-            </div>
-            <ScoreBadge value={themeAverage(cohort, t.column)} />
-          </Card>
-        ))}
+        {themes.map((t) => {
+          const avg = themeAverage(cohort, t.column);
+          return (
+            <Card key={t.column} className="flex items-center gap-4 p-5">
+              <Ring value={avg} max={100} state={scoreState(avg)} size={72} />
+              <div>
+                <p className="text-sm font-medium text-ink">{impactHeader(t)}</p>
+                <p className="mt-1 text-xs text-muted">Cohort mean (0–100)</p>
+              </div>
+            </Card>
+          );
+        })}
       </div>
 
       <CaptureFeedTable rows={cohort} columns={page.columns} />

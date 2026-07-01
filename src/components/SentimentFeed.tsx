@@ -27,28 +27,35 @@ const BAR: Record<Sentiment, string> = {
   negative: "bg-red",
 };
 
+// Three separate, labelled bars — easier to compare at a glance than one
+// merged/stacked bar.
 export function SentimentSummary({ rows }: { rows: SurveyResponse[] }) {
   const dist = distribution(rows);
   return (
     <Card className="p-5">
-      <p className="text-sm font-medium text-muted">
-        Sentiment distribution (Q10)
-      </p>
-      <div className="mt-3 flex h-3 w-full overflow-hidden rounded-full bg-line">
-        {dist.map((d) => (
-          <div
-            key={d.sentiment}
-            className={cn("h-full", BAR[d.sentiment])}
-            style={{ width: `${d.pct}%` }}
-            title={`${d.sentiment}: ${d.pct}%`}
-          />
-        ))}
+      <div className="flex items-baseline justify-between">
+        <p className="text-sm font-medium text-muted">
+          Sentiment distribution (Q10)
+        </p>
+        <p className="text-xs text-muted">{rows.length.toLocaleString()} responses</p>
       </div>
-      <div className="mt-3 flex gap-4 text-xs text-muted">
+      <div className="mt-4 space-y-3">
         {dist.map((d) => (
-          <span key={d.sentiment} className="capitalize">
-            {d.sentiment}: <span className="font-semibold">{d.pct}%</span>
-          </span>
+          <div key={d.sentiment} className="flex items-center gap-3">
+            <span className="w-16 shrink-0 text-xs font-medium capitalize text-muted">
+              {d.sentiment}
+            </span>
+            <div className="h-3 flex-1 overflow-hidden rounded-full bg-line/70">
+              <div
+                className={cn("h-full rounded-full", BAR[d.sentiment])}
+                style={{ width: `${d.pct}%` }}
+              />
+            </div>
+            <span className="w-20 shrink-0 text-right text-xs tabular-nums text-ink">
+              <span className="font-semibold">{d.pct}%</span>
+              <span className="text-muted"> · {d.count}</span>
+            </span>
+          </div>
         ))}
       </div>
     </Card>
