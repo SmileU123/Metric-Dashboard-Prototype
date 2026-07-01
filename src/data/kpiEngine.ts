@@ -117,22 +117,34 @@ function formatValue(value: number, unit: string, fmt: KpiDefinition["display_fo
   }
 }
 
-// 6-month trend by re-running the KPI over each month's rows.
-function monthlyTrend(
+const quarterOf = (d: Date) => Math.floor(d.getMonth() / 3); // 0..3
+
+// Quarterly trend (surveys run on a quarterly/biannual cadence, not monthly).
+// Re-runs the KPI over each of the last N quarters → smooth Q1–Q4 timelines
+// with no empty monthly drops.
+function quarterlyTrend(
   def: KpiDefinition,
   sources: KpiSource[],
   formula: KpiFormula | undefined,
-  rows: SurveyResponse[]
+  rows: SurveyResponse[],
+  quarters = 4
 ) {
-  const base = new Date();
-  return Array.from({ length: 6 }, (_, i) => {
-    const d = new Date(base.getFullYear(), base.getMonth() - (5 - i), 1);
+  const now = new Date();
+  const curQ = quarterOf(now);
+  return Array.from({ length: quarters }, (_, i) => {
+    const back = quarters - 1 - i;
+    let q = curQ - back;
+    let year = now.getFullYear();
+    while (q < 0) {
+      q += 4;
+      year -= 1;
+    }
     const bucket = rows.filter((r) => {
       const rd = new Date(r.submitted_at);
-      return rd.getFullYear() === d.getFullYear() && rd.getMonth() === d.getMonth();
+      return rd.getFullYear() === year && quarterOf(rd) === q;
     });
     return {
-      label: d.toLocaleString(undefined, { month: "short" }),
+      label: `Q${q + 1}`,
       value: kpiValue(def, sources, formula, bucket),
     };
   });
@@ -191,7 +203,7 @@ export function runKpiEngine(
       amber_at: th?.amber_min ?? 50,
       direction: "higher_better",
       scale_max: 100,
-      trend: monthlyTrend(d, sources, formula, rows),
+      trend: quarterlyTrend(d, sources, formula, rows),
     };
   });
 

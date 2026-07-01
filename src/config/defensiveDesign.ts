@@ -130,13 +130,16 @@ export const FILTER_DEFS: FilterDef[] = [
 // Chart type is presentation config too: swap a slot's visual without code.
 export type KpiViz = "gauge" | "ring" | "zonebar" | "columns" | "area" | "bartarget";
 
+// Boardroom layout: four consistent radial dials (slots 1,2,4,5) mirroring the
+// first two tiles (gauge + ring), and two horizontal linear gauges (slots 3,6)
+// for tracking against strict targets.
 export const KPI_VIZ: Record<number, KpiViz> = {
-  1: "gauge",
-  2: "ring",
-  3: "zonebar",
-  4: "columns",
-  5: "area",
-  6: "bartarget", // Housing Cost-to-Income (lower-is-better) — bar vs. target
+  1: "gauge", // radial dial
+  2: "ring", // radial dial
+  3: "zonebar", // horizontal linear gauge (Sustainable Mobility)
+  4: "gauge", // radial dial (Sustainability Performance)
+  5: "ring", // radial dial (Community Wellbeing & Belonging)
+  6: "bartarget", // horizontal linear gauge (Housing Affordability)
 };
 
 // ---- Q10: qualitative NLP engine --------------------------------------------

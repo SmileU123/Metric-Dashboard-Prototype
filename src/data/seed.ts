@@ -213,7 +213,8 @@ function buildResponses(): SurveyResponse[] {
         respondent_typology: typology,
         delivery_model: delivery,
         source: rand() < 0.65 ? "field_pwa" : "digital_public",
-        submitted_at: new Date(now - rand() * 180 * 864e5).toISOString(),
+        // spread across ~5 quarters so quarterly trends are fully populated
+        submitted_at: new Date(now - rand() * 450 * 864e5).toISOString(),
         q1_demographic: pick(opt("q1_demographic")),
         q2_asset_class: pick(opt("q2_asset_class")),
         q3_tenure: pick(opt("q3_tenure")),

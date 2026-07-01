@@ -84,7 +84,7 @@ begin
       ) values (
         t, proj, typ, deliv,
         case when random() < 0.65 then 'field_pwa' else 'digital_public' end,
-        now() - (random() * interval '180 days'),
+        now() - (random() * interval '450 days'),
         demos[1 + floor(random()*4)::int],
         assets[1 + floor(random()*4)::int],
         tenures[1 + floor(random()*4)::int],

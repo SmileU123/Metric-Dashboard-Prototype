@@ -152,10 +152,11 @@ source `transformation`, so this one rule covers every KPI.
 | `error_message` | text, nullable | |
 | `created_at` | timestamptz | |
 
-### 3.7 `kpi_timeseries` — execution history (monthly snapshots)
+### 3.7 `kpi_timeseries` — execution history (quarterly snapshots)
 
-Persisted monthly history that trend/line charts and drift metrics read from in a
-scheduled/production setup. Populated by `recompute_kpi_timeseries(tenant, months)`.
+Persisted **quarterly** history (`period = 'YYYY-Qn'`) that trend lines and drift
+metrics read from in a scheduled/production setup — surveys run on a
+quarterly/biannual cadence. Populated by `recompute_kpi_timeseries(tenant, quarters)`.
 
 | Column | Type | Notes |
 |---|---|---|
@@ -163,11 +164,11 @@ scheduled/production setup. Populated by `recompute_kpi_timeseries(tenant, month
 | `kpi_id` | uuid → `kpi_definition.id` (cascade) | |
 | `tenant_id` | text → `tenants.id` | |
 | `project_id` | uuid → `projects.id`, nullable | |
-| `period` | text | `YYYY-MM` |
-| `value` | numeric | KPI value for that month |
+| `period` | text | `YYYY-Qn` (quarterly) |
+| `value` | numeric | KPI value for that quarter |
 | `compliance_state` | text | `green` \| `amber` \| `red` |
 | `created_at` | timestamptz | |
-| — unique — | `(kpi_id, tenant_id, period)` | one row per KPI/tenant/month |
+| — unique — | `(kpi_id, tenant_id, period)` | one row per KPI/tenant/quarter |
 
 **`kpi_drift`** (view, `security_invoker`) adds period-over-period change:
 `value − lag(value) over (partition by kpi_id, tenant_id order by period)` as

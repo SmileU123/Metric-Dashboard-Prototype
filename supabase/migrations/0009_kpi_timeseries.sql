@@ -1,12 +1,13 @@
 -- =============================================================================
 -- 0009_kpi_timeseries.sql
--- Execution-history layer: persisted monthly KPI snapshots (audit item #5) plus
+-- Execution-history layer: persisted QUARTERLY KPI snapshots (audit item #5) plus
 -- a period-over-period drift view (item #7).
 --
--- kpi_result holds the latest snapshot; kpi_timeseries holds the monthly history
--- that trend/line charts and drift metrics read from in a production/scheduled
--- setup. (The Phase-1 UI still computes filtered trends live for interactivity;
--- this is the stored history the reviewer asked for.)
+-- Surveys run on a quarterly/biannual cadence, so history is bucketed by quarter
+-- (period = 'YYYY-Qn'). kpi_result holds the latest snapshot; kpi_timeseries
+-- holds the quarterly history that trend lines and drift metrics read from in a
+-- production/scheduled setup. (The Phase-1 UI computes filtered quarterly trends
+-- live for interactivity; this is the stored history.)
 -- =============================================================================
 
 create table public.kpi_timeseries (
@@ -25,8 +26,8 @@ create index kpi_timeseries_lookup on public.kpi_timeseries (tenant_id, kpi_id, 
 -- Populate the last N months of snapshots for a tenant (same math as
 -- recompute_kpis, windowed per calendar month).
 create or replace function public.recompute_kpi_timeseries(
-  p_tenant text,
-  p_months integer default 6
+  p_tenant   text,
+  p_quarters integer default 6
 ) returns void
 language plpgsql
 security definer
@@ -37,8 +38,8 @@ declare
   s       record;
   th      record;
   i       integer;
-  mstart  date;
-  mend    date;
+  qstart  date;
+  qend    date;
   period  text;
   weights numeric[];
   means   numeric[];
@@ -48,10 +49,10 @@ declare
   nhi     numeric;
   st      text;
 begin
-  for i in 0 .. (p_months - 1) loop
-    mstart := (date_trunc('month', now()) - make_interval(months => (p_months - 1 - i)))::date;
-    mend   := (mstart + interval '1 month')::date;
-    period := to_char(mstart, 'YYYY-MM');
+  for i in 0 .. (p_quarters - 1) loop
+    qstart := (date_trunc('quarter', now()) - make_interval(months => (p_quarters - 1 - i) * 3))::date;
+    qend   := (qstart + interval '3 months')::date;
+    period := to_char(qstart, 'YYYY') || '-Q' || extract(quarter from qstart)::int;
 
     for d in
       select * from kpi_definition
@@ -84,8 +85,8 @@ begin
                  end::numeric as v
         ) col
         where r.tenant_id = p_tenant
-          and r.submitted_at >= mstart
-          and r.submitted_at <  mend;
+          and r.submitted_at >= qstart
+          and r.submitted_at <  qend;
 
         if sval is not null then
           weights := weights || s.weight;
@@ -94,7 +95,7 @@ begin
       end loop;
 
       if coalesce(array_length(means, 1), 0) = 0 then
-        continue;  -- no data this month; skip the row
+        continue;  -- no data this quarter; skip the row
       end if;
 
       case d.calculation_type
