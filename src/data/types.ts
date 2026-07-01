@@ -80,7 +80,14 @@ export interface MetricView {
 // =============================================================================
 // KPI ENGINE (mirrors supabase/migrations/0005_kpi_engine.sql)
 // =============================================================================
-export type KpiCalcType = "weighted_average" | "ratio" | "index" | "direct";
+export type KpiCalcType =
+  | "weighted_average"
+  | "weighted_sum"
+  | "ratio"
+  | "index"
+  | "direct";
+export type KpiUnitType = "score" | "percentage" | "ratio" | "points";
+export type KpiDisplayFormat = "raw" | "percent" | "fixed_1dp";
 export type KpiSourceType = "survey" | "external" | "computed";
 export type KpiTransformation =
   | "passthrough"
@@ -101,7 +108,9 @@ export interface KpiDefinition {
   kpi_name: string;
   description: string;
   category: string;
-  unit: string; // display unit, e.g. 'pts', '%', 'score'
+  unit: string; // display suffix, e.g. 'pts', '%', 'score'
+  unit_type: KpiUnitType; // semantic kind of the value
+  display_format: KpiDisplayFormat; // how the number is rendered
   calculation_type: KpiCalcType;
   is_composite: boolean;
   is_active: boolean;
@@ -152,6 +161,15 @@ export interface KpiComputed extends MetricView {
   category: string;
   data_period: string;
   calculated_at: string;
+}
+
+// One stored monthly snapshot (KPI_Timeseries).
+export interface KpiTimeseriesPoint {
+  kpi_id: string;
+  tenant_id: string;
+  period: string; // 'YYYY-MM'
+  value: number;
+  compliance_state: ComplianceState;
 }
 
 // Audit record for one engine run (KPI_RunLog).

@@ -13,12 +13,28 @@ import type {
   KpiFormula,
   KpiSource,
   KpiThreshold,
+  KpiTimeseriesPoint,
   SurveyResponse,
   Tenant,
 } from "./types";
 import { SEED_KPI_CONFIG, SEED_RESPONSES, SEED_TENANTS } from "./seed";
 
 export const dataSource = isSupabaseConfigured ? "supabase" : "seed";
+
+// Stored monthly KPI history (kpi_timeseries). Empty in seed mode — the app
+// computes filtered trends live; this is the persisted history for reporting.
+export async function fetchKpiTimeseries(
+  tenantId: string
+): Promise<KpiTimeseriesPoint[]> {
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from("kpi_timeseries")
+    .select("kpi_id,tenant_id,period,value,compliance_state")
+    .eq("tenant_id", tenantId)
+    .order("period");
+  if (error) throw error;
+  return data as KpiTimeseriesPoint[];
+}
 
 function applyFilters(rows: SurveyResponse[], f: FilterState): SurveyResponse[] {
   return rows.filter(
@@ -152,6 +168,8 @@ export async function saveDefinition(d: KpiDefinition): Promise<void> {
         description: d.description,
         category: d.category,
         unit: d.unit,
+        unit_type: d.unit_type,
+        display_format: d.display_format,
         is_active: d.is_active,
       })
       .eq("id", d.id)

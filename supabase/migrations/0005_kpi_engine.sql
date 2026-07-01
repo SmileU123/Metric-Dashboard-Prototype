@@ -23,9 +23,13 @@ create table public.kpi_definition (
   kpi_name         text not null,
   description      text not null default '',
   category         text not null default 'general',
-  unit             text not null default 'pts',   -- display unit, e.g. 'pts', '%'
+  unit             text not null default 'pts',        -- display suffix, e.g. 'pts', '%'
+  unit_type        text not null default 'points'
+                     check (unit_type in ('score','percentage','ratio','points')),
+  display_format   text not null default 'fixed_1dp'
+                     check (display_format in ('raw','percent','fixed_1dp')),
   calculation_type text not null default 'weighted_average'
-                     check (calculation_type in ('weighted_average','ratio','index','direct')),
+                     check (calculation_type in ('weighted_average','weighted_sum','ratio','index','direct')),
   is_composite     boolean not null default false,
   is_active        boolean not null default true,
   display_order    smallint not null default 0,
@@ -118,16 +122,18 @@ security definer
 set search_path = public
 as $$
 declare
-  d    record;
-  s    record;
-  th   record;
-  t0   timestamptz;
-  nrec integer;
-  wsum numeric;
-  vsum numeric;
-  sval numeric;
-  kval numeric;
-  st   text;
+  d       record;
+  s       record;
+  th      record;
+  t0      timestamptz;
+  nrec    integer;
+  weights numeric[];
+  means   numeric[];
+  sval    numeric;
+  kval    numeric;
+  nlo     numeric;
+  nhi     numeric;
+  st      text;
 begin
   for d in
     select * from kpi_definition
@@ -135,13 +141,15 @@ begin
     order by display_order
   loop
     t0 := clock_timestamp();
-    wsum := 0; vsum := 0;
+    weights := '{}';
+    means   := '{}';
 
     select count(*) into nrec
     from survey_responses r
     where r.tenant_id = p_tenant
       and (p_project is null or r.project_id = p_project);
 
+    -- per-source transformed mean
     for s in select * from kpi_sources where kpi_id = d.id and is_active loop
       select avg(
                case s.transformation
@@ -169,13 +177,37 @@ begin
         and (p_project is null or r.project_id = p_project);
 
       if sval is not null then
-        vsum := vsum + sval * s.weight;
-        wsum := wsum + s.weight;
+        weights := weights || s.weight;
+        means   := means || sval;
       end if;
     end loop;
 
-    kval := case when wsum > 0 then vsum / wsum else 0 end;
+    -- combine per calculation_type
+    if coalesce(array_length(means, 1), 0) = 0 then
+      kval := 0;
+    else
+      case d.calculation_type
+        when 'ratio' then
+          kval := case when array_length(means,1) >= 2 and means[2] <> 0
+                       then 100 * means[1] / means[2] else means[1] end;
+        when 'weighted_sum' then
+          select sum(w * m) into kval from unnest(weights, means) as x(w, m);
+        when 'direct' then
+          kval := means[1];
+        else -- weighted_average, index
+          select sum(w * m) / nullif(sum(w), 0) into kval
+          from unnest(weights, means) as x(w, m);
+      end case;
+    end if;
 
+    -- normalization clamp
+    select coalesce(normalization_min, 0), coalesce(normalization_max, 100)
+      into nlo, nhi from kpi_formula where kpi_id = d.id limit 1;
+    nlo := coalesce(nlo, 0);
+    nhi := coalesce(nhi, 100);
+    kval := greatest(nlo, least(nhi, coalesce(kval, 0)));
+
+    -- threshold evaluation
     select * into th from kpi_thresholds where kpi_id = d.id limit 1;
     if not found then st := 'green';
     elsif kval >= th.green_min then st := 'green';
@@ -226,14 +258,14 @@ create policy kpi_runlog_read on public.kpi_runlog
 -- SEED: six standardized (global) KPIs with sources, formula, thresholds.
 -- =============================================================================
 insert into public.kpi_definition
-  (tenant_id, kpi_code, kpi_name, description, category, unit, calculation_type, is_composite, display_order)
+  (tenant_id, kpi_code, kpi_name, description, category, unit, unit_type, display_format, calculation_type, is_composite, display_order)
 values
-  (null,'LOCAL_ENV_QUALITY','Local Health & Environmental Quality','Composite of environmental/health quality and wellbeing signal.','environmental','pts','weighted_average',true,1),
-  (null,'PR_SAFETY_ACCESS','Public Realm Safety & Accessibility','Perception of safety, lighting, inclusivity and access of open spaces.','public_realm','pts','weighted_average',true,2),
-  (null,'SUS_MOBILITY','Sustainable Mobility Integration','Satisfaction with low-carbon transit, cycle storage and access.','mobility','pts','direct',false,3),
-  (null,'SUSTAINABILITY','Sustainability Performance','Composite sustainability and environmental-quality signal.','sustainability','pts','weighted_average',true,4),
-  (null,'COMMUNITY_WELLBEING','Community Wellbeing & Belonging','Belonging, community and overall wellbeing themes.','community','pts','weighted_average',true,5),
-  (null,'HOUSING_AFFORDABILITY','Housing Affordability','Cost-to-income ratio inverted to a 0–100 affordability score (higher = more affordable).','housing','pts','direct',false,6);
+  (null,'LOCAL_ENV_QUALITY','Local Health & Environmental Quality','Composite of environmental/health quality and wellbeing signal.','environmental','pts','points','fixed_1dp','weighted_average',true,1),
+  (null,'PR_SAFETY_ACCESS','Public Realm Safety & Accessibility','Perception of safety, lighting, inclusivity and access of open spaces.','public_realm','pts','points','fixed_1dp','weighted_average',true,2),
+  (null,'SUS_MOBILITY','Sustainable Mobility Integration','Satisfaction with low-carbon transit, cycle storage and access.','mobility','pts','points','fixed_1dp','direct',false,3),
+  (null,'SUSTAINABILITY','Sustainability Performance','Composite sustainability and environmental-quality signal.','sustainability','pts','points','fixed_1dp','weighted_average',true,4),
+  (null,'COMMUNITY_WELLBEING','Community Wellbeing & Belonging','Belonging, community and overall wellbeing themes.','community','pts','points','fixed_1dp','weighted_average',true,5),
+  (null,'HOUSING_AFFORDABILITY','Housing Affordability','Cost-to-income ratio inverted to a 0–100 affordability score (higher = more affordable).','housing','pts','points','fixed_1dp','direct',false,6);
 
 -- Sources (source_key = survey column; weight; transformation)
 insert into public.kpi_sources (kpi_id, source_type, source_key, weight, transformation)

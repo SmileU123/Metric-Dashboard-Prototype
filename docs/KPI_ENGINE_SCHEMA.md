@@ -70,8 +70,10 @@ survive KPI deletion).
 | `kpi_name` | text | display name |
 | `description` | text | |
 | `category` | text | e.g. `public_realm`, `mobility`, `housing` |
-| `unit` | text, default `'pts'` | display unit — `pts`, `%`, `score`, … |
-| `calculation_type` | text | `weighted_average` \| `ratio` \| `index` \| `direct` |
+| `unit` | text, default `'pts'` | display suffix — `pts`, `%`, `score`, … |
+| `unit_type` | text, default `'points'` | semantic kind — `score` \| `percentage` \| `ratio` \| `points` |
+| `display_format` | text, default `'fixed_1dp'` | rendering — `raw` \| `percent` \| `fixed_1dp` |
+| `calculation_type` | text | `weighted_average` \| `weighted_sum` \| `ratio` \| `index` \| `direct` — **executed distinctly by the engine** (see §4) |
 | `is_composite` | boolean | true if it aggregates multiple sources |
 | `is_active` | boolean | inactive KPIs are excluded from computation |
 | `display_order` | smallint | slot order on Page 1 |
@@ -150,22 +152,50 @@ source `transformation`, so this one rule covers every KPI.
 | `error_message` | text, nullable | |
 | `created_at` | timestamptz | |
 
+### 3.7 `kpi_timeseries` — execution history (monthly snapshots)
+
+Persisted monthly history that trend/line charts and drift metrics read from in a
+scheduled/production setup. Populated by `recompute_kpi_timeseries(tenant, months)`.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | uuid PK | |
+| `kpi_id` | uuid → `kpi_definition.id` (cascade) | |
+| `tenant_id` | text → `tenants.id` | |
+| `project_id` | uuid → `projects.id`, nullable | |
+| `period` | text | `YYYY-MM` |
+| `value` | numeric | KPI value for that month |
+| `compliance_state` | text | `green` \| `amber` \| `red` |
+| `created_at` | timestamptz | |
+| — unique — | `(kpi_id, tenant_id, period)` | one row per KPI/tenant/month |
+
+**`kpi_drift`** (view, `security_invoker`) adds period-over-period change:
+`value − lag(value) over (partition by kpi_id, tenant_id order by period)` as
+`delta_vs_prev`.
+
+> The Phase-1 UI computes **filtered** trends live from `survey_responses` (so
+> Q1–Q3 filters stay interactive); `kpi_timeseries` is the **stored, unfiltered**
+> history for reporting and the Phase-3 scheduled engine.
+
 ---
 
 ## 4. The engine
 
 `recompute_kpis(tenant, project, period)` (PL/pgSQL) and `runKpiEngine()` (TypeScript)
-apply the same algorithm:
+apply the same algorithm, **branching on `calculation_type`**:
 
 ```
 for each active KPI definition (global + tenant):
     for each active source:
         s_mean = avg( transform(source_key, transformation) )  over the in-scope survey rows
-    value = Σ(weight_i · s_mean_i) / Σ(weight_i)          -- weighted average
+    value = combine(calculation_type):
+        weighted_average / index → Σ(w·s_mean) / Σ(w)
+        weighted_sum            → Σ(w·s_mean)
+        direct                  → first source's mean
+        ratio                   → 100 · mean₁ / mean₂
     value = clamp(value, normalization_min, normalization_max)
     state = green_min/amber_min evaluation
-    write KPI_Result(value, state, period)
-    write KPI_RunLog(records_in, exec_ms, version, status)
+    write KPI_Result(value, state, period)      + KPI_RunLog(records_in, exec_ms, version, status)
 ```
 
 - **Server path** (`recompute_kpis`): the Phase-3 scheduled/batch job that writes
@@ -258,3 +288,21 @@ data entity, relationships are Base44 reference fields:
 
 The engine (`recompute_kpis`) becomes a Base44 automation/function; the traffic-light
 and weighted-average logic port directly.
+
+---
+
+## 10. Notes on common review questions
+
+- **Thresholds are per-KPI, not a global default.** Each KPI has its own
+  `kpi_thresholds` row (e.g. 75/50, 70/45, 72/48). `is_global` means "applies to
+  all *tenants*," not "same for all KPIs."
+- **Respondent typology *is* a modeled analytics dimension**, via
+  `survey_responses.respondent_typology` (`construction_adjacent` |
+  `resident_completed`) + `delivery_model` (`build_to_rent` | `build_to_sell`).
+  It drives the Pages 2–4 cohorts, the cohort-mix chart, and the
+  `macro_theme_monthly` aggregate view.
+- **Compliance is three states** (`green` / `amber` / `red`). "On track / Watch /
+  At risk" are the display labels for those three — not a separate fourth state.
+- **Server-side aggregation exists** in `macro_pool` / `macro_theme_monthly`
+  (anonymized cross-tenant) and now `kpi_timeseries` / `kpi_drift` (per-tenant
+  history + period-over-period change).

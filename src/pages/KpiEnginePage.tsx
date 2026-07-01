@@ -20,6 +20,7 @@ import { IMPACT_THEMES } from "@/config/defensiveDesign";
 import type {
   KpiComputed,
   KpiConfig,
+  KpiDefinition,
   KpiSource,
   KpiTransformation,
 } from "@/data/types";
@@ -52,6 +53,12 @@ const CATEGORIES = [
 
 const UNIT_OPTIONS = ["pts", "%", "score", "/100", ""];
 const unitLabel = (u: string) => (u === "" ? "none" : u);
+
+const FORMAT_OPTIONS: { value: "fixed_1dp" | "percent" | "raw"; label: string }[] = [
+  { value: "fixed_1dp", label: "1 decimal" },
+  { value: "percent", label: "percent" },
+  { value: "raw", label: "whole" },
+];
 
 function Chip({ children }: { children: React.ReactNode }) {
   return (
@@ -132,6 +139,17 @@ export function KpiEnginePage() {
       ),
     }));
     const d = { ...cfgRef.current.definitions.find((x) => x.id === kpiId)!, unit };
+    saveDefinition(d).catch(persistFail);
+  };
+
+  const setFormat = (kpiId: string, display_format: KpiDefinition["display_format"]) => {
+    setKpiConfig((p) => ({
+      ...p,
+      definitions: p.definitions.map((d) =>
+        d.id === kpiId ? { ...d, display_format } : d
+      ),
+    }));
+    const d = { ...cfgRef.current.definitions.find((x) => x.id === kpiId)!, display_format };
     saveDefinition(d).catch(persistFail);
   };
 
@@ -261,6 +279,22 @@ export function KpiEnginePage() {
                         {UNIT_OPTIONS.map((u) => (
                           <option key={u} value={u}>
                             {unitLabel(u)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="flex items-center gap-1 text-xs text-muted">
+                      fmt
+                      <select
+                        className="h-7 rounded border border-line bg-surface px-1 text-xs text-ink"
+                        value={d.display_format ?? "fixed_1dp"}
+                        onChange={(e) =>
+                          setFormat(d.id, e.target.value as KpiDefinition["display_format"])
+                        }
+                      >
+                        {FORMAT_OPTIONS.map((f) => (
+                          <option key={f.value} value={f.value}>
+                            {f.label}
                           </option>
                         ))}
                       </select>
@@ -431,6 +465,8 @@ function AddKpiForm({
         description: "Custom KPI added from the KPI Engine page.",
         category,
         unit,
+        unit_type: unit === "%" ? "percentage" : "points",
+        display_format: unit === "%" ? "percent" : "fixed_1dp",
         calculation_type: rows.length > 1 ? "weighted_average" : "direct",
         is_composite: rows.length > 1,
         is_active: true,

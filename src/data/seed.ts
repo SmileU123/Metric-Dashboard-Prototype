@@ -112,6 +112,8 @@ export const SEED_KPI_CONFIG: KpiConfig = {
     description: desc,
     category: cat,
     unit,
+    unit_type: "points" as const,
+    display_format: "fixed_1dp" as const,
     calculation_type: calc,
     is_composite: composite,
     is_active: true,
