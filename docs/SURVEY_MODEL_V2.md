@@ -5,7 +5,11 @@ catalogued model** that mirrors the DRAFT question architecture in
 `Resources/Mock Data_Field Survey - Online Survey.xlsx` and keeps KPI↔question
 tagging fully flexible.
 
-Status: **proposal — awaiting approval before migration.**
+Status: **APPROVED & IMPLEMENTED** (migrations 0001–0010). Decisions taken:
+catalog + EAV; Private Ownership stubbed (inactive catalog entries); Housing
+Affordability kept as a placeholder (synthesized cost-to-income, `invert`
+transform); data = real open-text payloads + synthesized to ~350 rows. Requires
+one live bundle run (`supabase/_run_in_sql_editor.sql`) to migrate the database.
 
 ---
 

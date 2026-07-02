@@ -71,15 +71,17 @@ begin
                    else col.v
                  end)
         into sval
-        from survey_responses r
+        from v_survey_flat r
         cross join lateral (
           select case s.source_key
-                   when 'q4_score' then r.q4_score
-                   when 'q5_score' then r.q5_score
-                   when 'q6_score' then r.q6_score
-                   when 'q7_score' then r.q7_score
-                   when 'q8_score' then r.q8_score
-                   when 'q9_score' then r.q9_score
+                   when 'fs_public_space' then r.fs_public_space
+                   when 'fs_grievance' then r.fs_grievance
+                   when 'ol_green_infra' then r.ol_green_infra
+                   when 'ol_active_travel' then r.ol_active_travel
+                   when 'ol_security' then r.ol_security
+                   when 'ol_public_realm' then r.ol_public_realm
+                   when 'ol_grievance' then r.ol_grievance
+                   when 'ol_wellbeing_aware' then r.ol_wellbeing_aware
                    when 'housing_cost_to_income' then r.housing_cost_to_income
                    else null
                  end::numeric as v

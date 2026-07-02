@@ -6,7 +6,6 @@ import type {
   DeliveryModel,
   KpiConfig,
   Project,
-  RespondentTypology,
   Sentiment,
   SurveyResponse,
   Tenant,
@@ -74,23 +73,25 @@ const KPI_DEFS: Array<
   ["HOUSING_AFFORDABILITY", "Housing Affordability", "Cost-to-income ratio inverted to a 0–100 affordability score (higher = more affordable).", "housing", "direct", false, "pts"],
 ];
 
-// source_key, weight, transformation, keyed by kpi code
+// source_key (question code) → weight, transformation. Re-tagged to the DRAFT
+// question architecture. Scale answers are pre-normalized to 0-100 by the flat
+// view, so transformation is passthrough (except the cost-to-income placeholder).
 const KPI_SRC: Record<string, Array<[string, number, KpiConfig["sources"][number]["transformation"]]>> = {
-  LOCAL_ENV_QUALITY: [["q4_score", 0.6, "passthrough"], ["q9_score", 0.4, "passthrough"]],
-  PR_SAFETY_ACCESS: [["q5_score", 0.7, "passthrough"], ["q8_score", 0.3, "passthrough"]],
-  SUS_MOBILITY: [["q6_score", 1.0, "passthrough"]],
-  SUSTAINABILITY: [["q7_score", 0.7, "passthrough"], ["q4_score", 0.3, "passthrough"]],
-  COMMUNITY_WELLBEING: [["q8_score", 0.5, "passthrough"], ["q9_score", 0.5, "passthrough"]],
+  LOCAL_ENV_QUALITY: [["ol_green_infra", 0.6, "passthrough"], ["ol_wellbeing_aware", 0.4, "passthrough"]],
+  PR_SAFETY_ACCESS: [["ol_public_realm", 0.4, "passthrough"], ["ol_security", 0.35, "passthrough"], ["fs_public_space", 0.25, "passthrough"]],
+  SUS_MOBILITY: [["ol_active_travel", 1.0, "passthrough"]],
+  SUSTAINABILITY: [["ol_green_infra", 0.7, "passthrough"], ["ol_public_realm", 0.3, "passthrough"]],
+  COMMUNITY_WELLBEING: [["ol_wellbeing_aware", 0.5, "passthrough"], ["ol_grievance", 0.5, "passthrough"]],
   HOUSING_AFFORDABILITY: [["housing_cost_to_income", 1.0, "invert_cost_to_income"]],
 };
 
 const KPI_FORMULA: Record<string, [KpiConfig["formulas"][number]["formula_type"], string]> = {
-  LOCAL_ENV_QUALITY: ["weighted_average", "Q4*0.6 + Q9*0.4"],
-  PR_SAFETY_ACCESS: ["weighted_average", "Q5*0.7 + Q8*0.3"],
-  SUS_MOBILITY: ["direct", "Q6"],
-  SUSTAINABILITY: ["weighted_average", "Q7*0.7 + Q4*0.3"],
-  COMMUNITY_WELLBEING: ["weighted_average", "Q8*0.5 + Q9*0.5"],
-  HOUSING_AFFORDABILITY: ["index", "100 - normalize(cost_to_income)"],
+  LOCAL_ENV_QUALITY: ["weighted_average", "OL_GREEN*0.6 + OL_WELLBEING*0.4"],
+  PR_SAFETY_ACCESS: ["weighted_average", "OL_PUBLIC*0.4 + OL_SECURITY*0.35 + FS_PUBLIC*0.25"],
+  SUS_MOBILITY: ["direct", "OL_ACTIVE_TRAVEL"],
+  SUSTAINABILITY: ["weighted_average", "OL_GREEN*0.7 + OL_PUBLIC*0.3"],
+  COMMUNITY_WELLBEING: ["weighted_average", "OL_WELLBEING*0.5 + OL_GRIEVANCE*0.5"],
+  HOUSING_AFFORDABILITY: ["index", "100 - normalize(cost_to_income)  [placeholder — external in prod]"],
 };
 
 const KPI_THRESH: Record<string, [number, number]> = {
@@ -178,8 +179,7 @@ const BLURBS: Record<Sentiment, string[]> = {
   ],
 };
 
-const opt = (key: "q1_demographic" | "q2_asset_class" | "q3_tenure") =>
-  FILTER_DEFS.find((f) => f.key === key)!.options;
+const AGE_BRACKETS = FILTER_DEFS.find((f) => f.key === "q1_demographic")!.options;
 
 function buildResponses(): SurveyResponse[] {
   const rows: SurveyResponse[] = [];
@@ -187,22 +187,26 @@ function buildResponses(): SurveyResponse[] {
   SEED_TENANTS.forEach((tenant, ti) => {
     const rand = mulberry32(1000 + ti * 99);
     const projects = SEED_PROJECTS.filter((p) => p.tenant_id === tenant.id);
-    for (let i = 0; i < 160; i++) {
+    for (let i = 0; i < 175; i++) {
       const base = 45 + rand() * 45;
       let sscore = (base - 60) / 30 + (rand() - 0.5) * 0.4;
       sscore = Math.max(-1, Math.min(1, sscore));
       const sentiment: Sentiment =
         sscore > 0.2 ? "positive" : sscore < -0.15 ? "negative" : "neutral";
-      const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
+      const S = (spread: number) =>
+        Math.max(0, Math.min(100, Math.round(base + (rand() - 0.5) * spread)));
       const pick = <T>(arr: T[]) => arr[Math.floor(rand() * arr.length)];
 
-      const isConstruction = rand() < 0.4;
-      const typology: RespondentTypology = isConstruction
-        ? "construction_adjacent"
-        : "resident_completed";
-      const delivery: DeliveryModel | null = isConstruction
+      const isField = rand() < 0.4;
+      const submitted = new Date(now - rand() * 450 * 864e5); // ~5 quarters
+      const year = submitted.getFullYear();
+      const quarter = Math.floor(submitted.getMonth() / 3) + 1;
+
+      // tenure only for completed/online residents
+      const tenure = isField ? null : rand() < 0.55 ? "btr" : "private_sale";
+      const delivery: DeliveryModel | null = isField
         ? null
-        : rand() < 0.5
+        : tenure === "btr"
           ? "build_to_rent"
           : "build_to_sell";
 
@@ -210,20 +214,28 @@ function buildResponses(): SurveyResponse[] {
         id: `${tenant.id}-r${i}`,
         tenant_id: tenant.id,
         project_id: pick(projects).id,
-        respondent_typology: typology,
+        channel: isField ? "field" : "online",
+        source: isField ? "field_pwa" : "digital_public",
+        asset_class_state: isField ? "in_construction" : "completed",
+        tenure,
+        respondent_typology: isField ? "construction_adjacent" : "resident_completed",
         delivery_model: delivery,
-        source: rand() < 0.65 ? "field_pwa" : "digital_public",
-        // spread across ~5 quarters so quarterly trends are fully populated
-        submitted_at: new Date(now - rand() * 450 * 864e5).toISOString(),
-        q1_demographic: pick(opt("q1_demographic")),
-        q2_asset_class: pick(opt("q2_asset_class")),
-        q3_tenure: pick(opt("q3_tenure")),
-        q4_score: clamp(base + (rand() - 0.5) * 20),
-        q5_score: clamp(base + (rand() - 0.5) * 24),
-        q6_score: clamp(base + (rand() - 0.5) * 22),
-        q7_score: clamp(base + (rand() - 0.5) * 26),
-        q8_score: clamp(base + (rand() - 0.5) * 20),
-        q9_score: clamp(base + (rand() - 0.5) * 18),
+        temporal_cohort: `Q${quarter}-${year}`,
+        period_year: year,
+        period_quarter: quarter,
+        submitted_at: submitted.toISOString(),
+        q1_demographic: pick(AGE_BRACKETS),
+        q2_asset_class: isField ? "In-Construction" : "Completed",
+        q3_tenure: isField ? "—" : tenure === "btr" ? "BTR" : "Private Sale",
+        // impact questions by code — only the channel's questions are answered
+        fs_public_space: isField ? S(24) : null,
+        fs_grievance: isField ? S(28) : null,
+        ol_green_infra: isField ? null : S(22),
+        ol_active_travel: isField ? null : S(24),
+        ol_security: isField ? null : S(26),
+        ol_public_realm: isField ? null : S(20),
+        ol_grievance: isField ? null : S(28),
+        ol_wellbeing_aware: isField ? null : S(20),
         housing_cost_to_income:
           Math.round((52 - (base - 45) * 0.25 + (rand() - 0.5) * 8) * 10) / 10,
         q10_text: pick(BLURBS[sentiment]),

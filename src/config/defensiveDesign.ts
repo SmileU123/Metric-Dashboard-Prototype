@@ -1,18 +1,14 @@
 // =============================================================================
-// Defensive Design config layer
+// Defensive Design config layer (Survey Model v2)
 //
-// This single file decouples the *presentation* of the survey from the survey's
-// actual question wording. Every label the UI renders for Q1-Q10 comes from here.
-// If a survey question is reworded after a pitch, you edit ONE line here — no
-// component, column, or migration changes.
+// Decouples the *presentation* from the survey's question wording. Impact columns
+// are now QUESTION CODES from the catalog (survey_questions), so which questions
+// a screen/KPI shows is config, not schema.
 //
-//  * Q1-Q3  -> contextual FILTERS  (drive interface filtering logic)
-//  * Q4-Q9  -> IMPACT variables    (thematic table headers, e.g. the brief's
-//                                    "Spatial Transit Sentiment (Q4)")
-//  * Q10    -> QUALITATIVE NLP      (280-char text + sentiment tag)
-//
-// Pages 2-4 are segmented by respondent TYPOLOGY (construction-adjacent vs
-// completed-building BTR/BTS residents), not by theme — see DEEP_DIVE_PAGES.
+//  * FILTER_DEFS   -> contextual filters (envelope dimensions)
+//  * IMPACT_THEMES -> impact questions (thematic table headers)
+//  * QUALITATIVE   -> open-text (Field Q7 / Online Q10) + sentiment
+//  * DEEP_DIVE_PAGES are segmented by respondent cohort (typology + tenure).
 // =============================================================================
 
 import type {
@@ -21,29 +17,34 @@ import type {
   SurveyResponse,
 } from "@/data/types";
 
+// Impact question codes (match v_survey_flat columns + survey_questions.code).
 export type ImpactColumn =
-  | "q4_score"
-  | "q5_score"
-  | "q6_score"
-  | "q7_score"
-  | "q8_score"
-  | "q9_score";
+  | "fs_public_space"
+  | "fs_grievance"
+  | "ol_green_infra"
+  | "ol_active_travel"
+  | "ol_security"
+  | "ol_public_realm"
+  | "ol_grievance"
+  | "ol_wellbeing_aware";
 
 export interface ImpactTheme {
   column: ImpactColumn;
-  code: string; // "Q4"
+  code: string; // short tag shown next to the header
   // Broad thematic category shown as the column header — NOT the literal question.
   header: string;
 }
 
-// ---- Q4-Q9: thematic column headers (abstracted from question strings) -------
+// ---- Impact question themes (headers abstracted from literal question text) ---
 export const IMPACT_THEMES: ImpactTheme[] = [
-  { column: "q4_score", code: "Q4", header: "Environmental & Health Quality" },
-  { column: "q5_score", code: "Q5", header: "Public Realm Safety & Access" },
-  { column: "q6_score", code: "Q6", header: "Sustainable Mobility" },
-  { column: "q7_score", code: "Q7", header: "Sustainability & Energy" },
-  { column: "q8_score", code: "Q8", header: "Community & Belonging" },
-  { column: "q9_score", code: "Q9", header: "Wellbeing & Amenity" },
+  { column: "fs_public_space", code: "F-Q4", header: "Public Space Sentiment" },
+  { column: "fs_grievance", code: "F-Q5", header: "Grievance & Communication" },
+  { column: "ol_green_infra", code: "O-1", header: "Green Infra & Efficiency" },
+  { column: "ol_active_travel", code: "O-3", header: "Recycling & Active Travel" },
+  { column: "ol_security", code: "O-4", header: "Off-Peak Security" },
+  { column: "ol_public_realm", code: "O-5", header: "Public Realm Contribution" },
+  { column: "ol_grievance", code: "O-6", header: "Management Responsiveness" },
+  { column: "ol_wellbeing_aware", code: "O-7", header: "Community & Wellbeing" },
 ];
 
 export const ALL_IMPACT_COLUMNS: ImpactColumn[] = IMPACT_THEMES.map(
@@ -53,7 +54,7 @@ export const ALL_IMPACT_COLUMNS: ImpactColumn[] = IMPACT_THEMES.map(
 export const impactHeader = (t: ImpactTheme) => `${t.header} (${t.code})`;
 
 // ---- Pages 2-4: typology deep-dive screens ----------------------------------
-// Each screen is the SAME table component filtered to one respondent cohort.
+// Each screen filters to one respondent cohort and shows that channel's columns.
 export interface DeepDivePage {
   slug: string;
   title: string;
@@ -63,32 +64,39 @@ export interface DeepDivePage {
   columns: ImpactColumn[];
 }
 
+const FIELD_COLUMNS: ImpactColumn[] = ["fs_public_space", "fs_grievance"];
+const ONLINE_COLUMNS: ImpactColumn[] = [
+  "ol_green_infra",
+  "ol_active_travel",
+  "ol_security",
+  "ol_public_realm",
+  "ol_grievance",
+  "ol_wellbeing_aware",
+];
+
 export const DEEP_DIVE_PAGES: DeepDivePage[] = [
   {
     slug: "construction",
     title: "Construction-Adjacent",
-    description:
-      "Responses from residents living adjacent to active construction sites.",
+    description: "Field intercepts adjacent to active construction sites.",
     typology: "construction_adjacent",
-    columns: ALL_IMPACT_COLUMNS,
+    columns: FIELD_COLUMNS,
   },
   {
     slug: "build-to-rent",
     title: "Completed · Build to Rent",
-    description:
-      "Residents of completed Build-to-Rent buildings across the portfolio.",
+    description: "Online/QR responses from completed Build-to-Rent buildings.",
     typology: "resident_completed",
     delivery: "build_to_rent",
-    columns: ALL_IMPACT_COLUMNS,
+    columns: ONLINE_COLUMNS,
   },
   {
     slug: "build-to-sell",
     title: "Completed · Build to Sell",
-    description:
-      "Residents of completed Build-to-Sell buildings across the portfolio.",
+    description: "Online/QR responses from completed private-sale buildings.",
     typology: "resident_completed",
     delivery: "build_to_sell",
-    columns: ALL_IMPACT_COLUMNS,
+    columns: ONLINE_COLUMNS,
   },
 ];
 
@@ -97,7 +105,19 @@ export const matchesCohort = (r: SurveyResponse, page: DeepDivePage): boolean =>
   r.respondent_typology === page.typology &&
   (page.delivery === undefined || r.delivery_model === page.delivery);
 
-// ---- Q1-Q3: contextual filters ----------------------------------------------
+// ---- Page 1 visualization per KPI slot --------------------------------------
+export type KpiViz = "gauge" | "ring" | "zonebar" | "columns" | "area" | "bartarget";
+
+export const KPI_VIZ: Record<number, KpiViz> = {
+  1: "gauge",
+  2: "ring",
+  3: "zonebar",
+  4: "gauge",
+  5: "ring",
+  6: "bartarget",
+};
+
+// ---- Contextual filters (envelope dimensions) -------------------------------
 export interface FilterDef {
   key: "q1_demographic" | "q2_asset_class" | "q3_tenure";
   code: string;
@@ -108,41 +128,25 @@ export interface FilterDef {
 export const FILTER_DEFS: FilterDef[] = [
   {
     key: "q1_demographic",
-    code: "Q1",
-    label: "Demographic Bracket",
-    options: ["18-29", "30-44", "45-59", "60+"],
+    code: "Age",
+    label: "Age Bracket",
+    options: ["18-24", "25-34", "35-49", "50-64", "65+"],
   },
   {
     key: "q2_asset_class",
-    code: "Q2",
-    label: "Asset Class",
-    options: ["Residential", "Commercial", "Mixed-Use", "Industrial"],
+    code: "State",
+    label: "Asset State",
+    options: ["In-Construction", "Completed"],
   },
   {
     key: "q3_tenure",
-    code: "Q3",
+    code: "Tenure",
     label: "Tenure",
-    options: ["<1yr", "1-3yr", "3-5yr", "5yr+"],
+    options: ["BTR", "Private Sale", "Private Ownership"],
   },
 ];
 
-// ---- Page 1 visualization per KPI slot --------------------------------------
-// Chart type is presentation config too: swap a slot's visual without code.
-export type KpiViz = "gauge" | "ring" | "zonebar" | "columns" | "area" | "bartarget";
-
-// Boardroom layout: four consistent radial dials (slots 1,2,4,5) mirroring the
-// first two tiles (gauge + ring), and two horizontal linear gauges (slots 3,6)
-// for tracking against strict targets.
-export const KPI_VIZ: Record<number, KpiViz> = {
-  1: "gauge", // radial dial
-  2: "ring", // radial dial
-  3: "zonebar", // horizontal linear gauge (Sustainable Mobility)
-  4: "gauge", // radial dial (Sustainability Performance)
-  5: "ring", // radial dial (Community Wellbeing & Belonging)
-  6: "bartarget", // horizontal linear gauge (Housing Affordability)
-};
-
-// ---- Q10: qualitative NLP engine --------------------------------------------
+// ---- Qualitative open text --------------------------------------------------
 export const QUALITATIVE = {
   column: "q10_text" as const,
   code: "Q10",
@@ -150,6 +154,6 @@ export const QUALITATIVE = {
   maxLength: 280, // hard cap, per brief
 };
 
-// Helper: type guard tying impact columns back to the response shape.
+// Helper: read an impact column (null when the channel didn't ask it).
 export const impactValue = (r: SurveyResponse, col: ImpactColumn): number =>
-  r[col];
+  Number(r[col] ?? 0);

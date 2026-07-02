@@ -100,7 +100,7 @@ export async function fetchResponses(
     );
   }
   let query = supabase
-    .from("survey_responses")
+    .from("v_survey_flat") // v2: flat projection of envelope ⋈ answers
     .select("*")
     .eq("tenant_id", tenantId)
     .order("submitted_at", { ascending: false });

@@ -16,45 +16,48 @@
 -- into a physically separate table).
 -- =============================================================================
 
--- Row-level anonymized pool. No tenant_id / project_id, no free text, month bucket.
+-- Row-level anonymized pool. No tenant_id / project_id, no free text; quarter bucket.
 create view public.macro_pool as
 select
-  date_trunc('month', submitted_at)::date as period_month,
-  source,
+  temporal_cohort,
+  period_year,
+  period_quarter,
+  channel,
   respondent_typology,
   delivery_model,
   q1_demographic,
   q2_asset_class,
   q3_tenure,
-  q4_score, q5_score, q6_score, q7_score, q8_score, q9_score,
-  housing_cost_to_income,
+  fs_public_space, fs_grievance,
+  ol_green_infra, ol_active_travel, ol_security,
+  ol_public_realm, ol_grievance, ol_wellbeing_aware,
   q10_sentiment
-from public.survey_responses;
+from public.v_survey_flat;
 
 comment on view public.macro_pool is
   'Stream B: de-identified, cross-tenant analytical pool. No tenant/project key, no free text.';
 
--- Pre-aggregated thematic sentiment by month and typology.
-create view public.macro_theme_monthly as
+-- Pre-aggregated thematic sentiment by quarter and typology.
+create view public.macro_theme_quarterly as
 select
-  period_month,
+  period_year,
+  period_quarter,
   respondent_typology,
   delivery_model,
-  count(*)                              as response_count,
-  round(avg(q4_score)::numeric, 1)      as q4_avg,
-  round(avg(q5_score)::numeric, 1)      as q5_avg,
-  round(avg(q6_score)::numeric, 1)      as q6_avg,
-  round(avg(q7_score)::numeric, 1)      as q7_avg,
-  round(avg(q8_score)::numeric, 1)      as q8_avg,
-  round(avg(q9_score)::numeric, 1)      as q9_avg,
-  round(avg(housing_cost_to_income)::numeric, 1) as cost_to_income_avg,
+  count(*)                                     as response_count,
+  round(avg(ol_green_infra)::numeric, 1)       as green_infra_avg,
+  round(avg(ol_active_travel)::numeric, 1)     as active_travel_avg,
+  round(avg(ol_security)::numeric, 1)          as security_avg,
+  round(avg(ol_public_realm)::numeric, 1)      as public_realm_avg,
+  round(avg(ol_wellbeing_aware)::numeric, 1)   as wellbeing_avg,
+  round(avg(fs_public_space)::numeric, 1)      as field_public_space_avg,
   round(100.0 * sum((q10_sentiment = 'positive')::int) / nullif(count(*),0), 1) as pct_positive
 from public.macro_pool
-group by period_month, respondent_typology, delivery_model;
+group by period_year, period_quarter, respondent_typology, delivery_model;
 
-comment on view public.macro_theme_monthly is
-  'Stream B: pre-aggregated macro trends by month and respondent typology.';
+comment on view public.macro_theme_quarterly is
+  'Stream B: pre-aggregated macro trends by quarter and respondent typology.';
 
 -- Stream B is the shared analytical surface; expose it to read-only roles.
-grant select on public.macro_pool          to anon, authenticated;
-grant select on public.macro_theme_monthly to anon, authenticated;
+grant select on public.macro_pool            to anon, authenticated;
+grant select on public.macro_theme_quarterly to anon, authenticated;

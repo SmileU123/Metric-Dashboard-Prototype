@@ -160,15 +160,17 @@ begin
                  else col.v
                end)
       into sval
-      from survey_responses r
+      from v_survey_flat r
       cross join lateral (
         select case s.source_key
-                 when 'q4_score' then r.q4_score
-                 when 'q5_score' then r.q5_score
-                 when 'q6_score' then r.q6_score
-                 when 'q7_score' then r.q7_score
-                 when 'q8_score' then r.q8_score
-                 when 'q9_score' then r.q9_score
+                 when 'fs_public_space' then r.fs_public_space
+                 when 'fs_grievance' then r.fs_grievance
+                 when 'ol_green_infra' then r.ol_green_infra
+                 when 'ol_active_travel' then r.ol_active_travel
+                 when 'ol_security' then r.ol_security
+                 when 'ol_public_realm' then r.ol_public_realm
+                 when 'ol_grievance' then r.ol_grievance
+                 when 'ol_wellbeing_aware' then r.ol_wellbeing_aware
                  when 'housing_cost_to_income' then r.housing_cost_to_income
                  else null
                end::numeric as v
@@ -270,15 +272,16 @@ values
 -- Sources (source_key = survey column; weight; transformation)
 insert into public.kpi_sources (kpi_id, source_type, source_key, weight, transformation)
 select id, 'survey', k, w, tr from (values
-  ('LOCAL_ENV_QUALITY','q4_score',0.6,'passthrough'),
-  ('LOCAL_ENV_QUALITY','q9_score',0.4,'passthrough'),
-  ('PR_SAFETY_ACCESS','q5_score',0.7,'passthrough'),
-  ('PR_SAFETY_ACCESS','q8_score',0.3,'passthrough'),
-  ('SUS_MOBILITY','q6_score',1.0,'passthrough'),
-  ('SUSTAINABILITY','q7_score',0.7,'passthrough'),
-  ('SUSTAINABILITY','q4_score',0.3,'passthrough'),
-  ('COMMUNITY_WELLBEING','q8_score',0.5,'passthrough'),
-  ('COMMUNITY_WELLBEING','q9_score',0.5,'passthrough'),
+  ('LOCAL_ENV_QUALITY','ol_green_infra',0.6,'passthrough'),
+  ('LOCAL_ENV_QUALITY','ol_wellbeing_aware',0.4,'passthrough'),
+  ('PR_SAFETY_ACCESS','ol_public_realm',0.4,'passthrough'),
+  ('PR_SAFETY_ACCESS','ol_security',0.35,'passthrough'),
+  ('PR_SAFETY_ACCESS','fs_public_space',0.25,'passthrough'),
+  ('SUS_MOBILITY','ol_active_travel',1.0,'passthrough'),
+  ('SUSTAINABILITY','ol_green_infra',0.7,'passthrough'),
+  ('SUSTAINABILITY','ol_public_realm',0.3,'passthrough'),
+  ('COMMUNITY_WELLBEING','ol_wellbeing_aware',0.5,'passthrough'),
+  ('COMMUNITY_WELLBEING','ol_grievance',0.5,'passthrough'),
   ('HOUSING_AFFORDABILITY','housing_cost_to_income',1.0,'invert_cost_to_income')
 ) as v(code,k,w,tr)
 join public.kpi_definition d on d.kpi_code = v.code and d.tenant_id is null;
@@ -286,12 +289,12 @@ join public.kpi_definition d on d.kpi_code = v.code and d.tenant_id is null;
 -- Formula
 insert into public.kpi_formula (kpi_id, formula_type, expression)
 select id, ft, expr from (values
-  ('LOCAL_ENV_QUALITY','weighted_average','Q4*0.6 + Q9*0.4'),
-  ('PR_SAFETY_ACCESS','weighted_average','Q5*0.7 + Q8*0.3'),
-  ('SUS_MOBILITY','direct','Q6'),
-  ('SUSTAINABILITY','weighted_average','Q7*0.7 + Q4*0.3'),
-  ('COMMUNITY_WELLBEING','weighted_average','Q8*0.5 + Q9*0.5'),
-  ('HOUSING_AFFORDABILITY','index','100 - normalize(cost_to_income)')
+  ('LOCAL_ENV_QUALITY','weighted_average','OL_GREEN*0.6 + OL_WELLBEING*0.4'),
+  ('PR_SAFETY_ACCESS','weighted_average','OL_PUBLIC*0.4 + OL_SECURITY*0.35 + FS_PUBLIC*0.25'),
+  ('SUS_MOBILITY','direct','OL_ACTIVE_TRAVEL'),
+  ('SUSTAINABILITY','weighted_average','OL_GREEN*0.7 + OL_PUBLIC*0.3'),
+  ('COMMUNITY_WELLBEING','weighted_average','OL_WELLBEING*0.5 + OL_GRIEVANCE*0.5'),
+  ('HOUSING_AFFORDABILITY','index','100 - normalize(cost_to_income)  [placeholder]')
 ) as v(code,ft,expr)
 join public.kpi_definition d on d.kpi_code = v.code and d.tenant_id is null;
 

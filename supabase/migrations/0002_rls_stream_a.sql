@@ -29,6 +29,8 @@ alter table public.tenants          enable row level security;
 alter table public.projects         enable row level security;
 alter table public.tenant_members   enable row level security;
 alter table public.survey_responses enable row level security;
+alter table public.survey_questions enable row level security;
+alter table public.survey_answers   enable row level security;
 
 -- ---- tenants ----------------------------------------------------------------
 create policy tenants_member_read on public.tenants
@@ -66,3 +68,11 @@ create policy responses_member_insert on public.survey_responses
 create policy responses_member_update on public.survey_responses
   for update using ( tenant_id in (select public.current_tenant_ids()) )
   with check ( tenant_id in (select public.current_tenant_ids()) );
+
+-- ---- survey_questions (global catalog — readable to everyone) ---------------
+create policy questions_read on public.survey_questions
+  for select using ( true );
+
+-- ---- survey_answers (inherit visibility from their response) -----------------
+create policy answers_member_read on public.survey_answers
+  for select using ( response_id in (select id from public.survey_responses) );

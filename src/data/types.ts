@@ -7,6 +7,12 @@ export type Sentiment = "positive" | "neutral" | "negative";
 export type ResponseSource = "field_pwa" | "digital_public";
 export type MetricDirection = "higher_better" | "lower_better";
 
+// Survey channels (Survey Model v2). `source` is the legacy alias kept for the
+// Page-4 channel filter (field_pwa = Field Intercept, digital_public = Online).
+export type SurveyChannel = "field" | "online" | "private_ownership";
+export type AssetClassState = "in_construction" | "completed";
+export type Tenure = "btr" | "private_sale" | "private_ownership";
+
 // Respondent typology — drives the Pages 2-4 deep-dive segmentation.
 export type RespondentTypology = "construction_adjacent" | "resident_completed";
 export type DeliveryModel = "build_to_rent" | "build_to_sell";
@@ -29,34 +35,45 @@ export interface Project {
   retention_expires_at: string | null;
 }
 
+// A survey submission, projected flat from the v2 model (envelope ⋈ answers) by
+// the `v_survey_flat` view. Impact columns are named by QUESTION CODE and are
+// null when the channel didn't ask that question (field vs online).
 export interface SurveyResponse {
   id: string;
   tenant_id: string;
   project_id: string | null;
 
-  respondent_typology: RespondentTypology;
-  delivery_model: DeliveryModel | null;
+  channel: SurveyChannel;
+  source: ResponseSource; // legacy alias for the channel filter
+  asset_class_state: AssetClassState;
+  tenure: Tenure | null;
+  respondent_typology: RespondentTypology; // derived from asset_class_state
+  delivery_model: DeliveryModel | null; // derived from tenure
 
-  source: ResponseSource;
+  temporal_cohort: string; // 'Q3-2026'
+  period_year: number;
+  period_quarter: number;
   submitted_at: string; // ISO
 
-  // Q1-Q3 contextual filters
-  q1_demographic: string;
-  q2_asset_class: string;
-  q3_tenure: string;
+  // Q1-Q3 contextual filters (envelope dimensions)
+  q1_demographic: string; // age bracket
+  q2_asset_class: string; // asset state label
+  q3_tenure: string; // tenure label
 
-  // Q4-Q9 generalized impact variables (0-100)
-  q4_score: number;
-  q5_score: number;
-  q6_score: number;
-  q7_score: number;
-  q8_score: number;
-  q9_score: number;
+  // Impact questions by code (0-100 after normalization; null if not asked)
+  fs_public_space: number | null; // Field Q4 — Public Space Sentiment
+  fs_grievance: number | null; // Field Q5 — Grievance & Communication
+  ol_green_infra: number | null; // Online — Green infra & efficiency
+  ol_active_travel: number | null; // Online — Recycling / active travel
+  ol_security: number | null; // Online — Off-peak security
+  ol_public_realm: number | null; // Online — Public realm contribution
+  ol_grievance: number | null; // Online — Management listens / grievance
+  ol_wellbeing_aware: number | null; // Online — Community/wellness awareness
 
-  // Quantitative: housing cost-to-income ratio (%). Lower is better.
-  housing_cost_to_income: number;
+  // Placeholder KPI input (no survey question exists — external in production)
+  housing_cost_to_income: number | null;
 
-  // Q10 qualitative NLP
+  // Open text (Field Q7 / Online Q10) + sentiment
   q10_text: string;
   q10_sentiment: Sentiment;
   q10_sentiment_score: number;
