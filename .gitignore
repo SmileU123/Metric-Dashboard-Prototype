@@ -21,3 +21,6 @@ supabase/.temp
 
 # Generated convenience bundle (duplicates migrations)
 supabase/_run_in_sql_editor.sql
+
+# Office lock / temp files
+~$*
