@@ -10,7 +10,8 @@ import type {
   SurveyResponse,
   Tenant,
 } from "./types";
-import { FILTER_DEFS } from "@/config/defensiveDesign";
+import { FILTER_DEFS, ALL_IMPACT_COLUMNS } from "@/config/defensiveDesign";
+import type { RawResponse } from "./types";
 
 export const SEED_TENANTS: Tenant[] = [
   {
@@ -248,3 +249,31 @@ function buildResponses(): SurveyResponse[] {
 }
 
 export const SEED_RESPONSES: SurveyResponse[] = buildResponses();
+
+// Raw view (seed mode): derive raw Likert 1-5 back from the normalized columns
+// so the Raw Data page works without a backend. Live mode reads the true
+// stored value_raw from survey_answers.
+const rawScale = (norm: number) => Math.round(norm / 25) + 1; // 0→1 … 100→5
+
+export const SEED_RAW_RESPONSES: RawResponse[] = SEED_RESPONSES.map((r) => ({
+  id: r.id,
+  tenant_id: r.tenant_id,
+  channel: r.channel,
+  temporal_cohort: r.temporal_cohort,
+  q1_demographic: r.q1_demographic,
+  q3_tenure: r.q3_tenure,
+  q10_text: r.q10_text,
+  q10_sentiment: r.q10_sentiment,
+  submitted_at: r.submitted_at,
+  answers: ALL_IMPACT_COLUMNS.filter((c) => r[c] != null).map((c) => {
+    const norm = Number(r[c]);
+    const scale = rawScale(norm);
+    return {
+      question_code: c.toUpperCase(),
+      value_raw: String(scale),
+      value_raw_type: "numeric",
+      value_numeric: scale,
+      value_normalized: norm,
+    };
+  }),
+}));

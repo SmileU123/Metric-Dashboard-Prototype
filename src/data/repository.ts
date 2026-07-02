@@ -14,12 +14,42 @@ import type {
   KpiSource,
   KpiThreshold,
   KpiTimeseriesPoint,
+  RawResponse,
   SurveyResponse,
   Tenant,
 } from "./types";
-import { SEED_KPI_CONFIG, SEED_RESPONSES, SEED_TENANTS } from "./seed";
+import {
+  SEED_KPI_CONFIG,
+  SEED_RAW_RESPONSES,
+  SEED_RESPONSES,
+  SEED_TENANTS,
+} from "./seed";
 
 export const dataSource = isSupabaseConfigured ? "supabase" : "seed";
+
+// Raw survey data for the Raw Data page: each response with its verbatim
+// per-question answers (survey_answers). Seed mode derives raw from the
+// normalized columns.
+export async function fetchRawResponses(
+  tenantId: string
+): Promise<RawResponse[]> {
+  if (!supabase) {
+    return SEED_RAW_RESPONSES.filter((r) => r.tenant_id === tenantId);
+  }
+  const { data, error } = await supabase
+    .from("survey_responses")
+    .select(
+      "id,tenant_id,channel,temporal_cohort,q1_demographic,q3_tenure,q10_text,q10_sentiment,submitted_at," +
+        "survey_answers(question_code,value_raw,value_raw_type,value_numeric,value_normalized)"
+    )
+    .eq("tenant_id", tenantId)
+    .order("submitted_at", { ascending: false })
+    .limit(2000);
+  if (error) throw error;
+  return (data as unknown as (RawResponse & { survey_answers: RawResponse["answers"] })[]).map(
+    (r) => ({ ...r, answers: r.survey_answers ?? [] })
+  );
+}
 
 // Stored monthly KPI history (kpi_timeseries). Empty in seed mode — the app
 // computes filtered trends live; this is the persisted history for reporting.

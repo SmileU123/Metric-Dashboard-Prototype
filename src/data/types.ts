@@ -180,6 +180,28 @@ export interface KpiComputed extends MetricView {
   calculated_at: string;
 }
 
+// Raw survey data (for the Raw Data page). Preserves the verbatim capture.
+export interface RawAnswer {
+  question_code: string;
+  value_raw: string | null;
+  value_raw_type: string;
+  value_numeric: number | null;
+  value_normalized: number | null;
+}
+
+export interface RawResponse {
+  id: string;
+  tenant_id: string;
+  channel: SurveyChannel;
+  temporal_cohort: string;
+  q1_demographic: string;
+  q3_tenure: string;
+  q10_text: string;
+  q10_sentiment: Sentiment;
+  submitted_at: string;
+  answers: RawAnswer[];
+}
+
 // One stored monthly snapshot (KPI_Timeseries).
 export interface KpiTimeseriesPoint {
   kpi_id: string;
