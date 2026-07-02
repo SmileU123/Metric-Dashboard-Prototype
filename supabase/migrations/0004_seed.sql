@@ -76,6 +76,10 @@ declare
     'Management is slow to respond to estate grievances.'];
   field_codes  text[] := array['FS_PUBLIC_SPACE','FS_GRIEVANCE'];
   online_codes text[] := array['OL_GREEN_INFRA','OL_ACTIVE_TRAVEL','OL_SECURITY','OL_PUBLIC_REALM','OL_GRIEVANCE','OL_WELLBEING_AWARE'];
+  proximities  text[] := array['DCW','LR','Occ_Ten','FTV_Passerby'];
+  well_opts    text[] := array['Yes_POS','YES_NEG','NO_NEG'];
+  offerings    text[] := array['Expanded Green Space / Shading','Community Workshops & Social Events','Secure Bicycle & EV Infrastructure','Improved Lighting & Public Safety Measures','Local Business/Independent Retail Pop-ups'];
+  age_years    int; off1 int; off2 int;
   t text; i int; base real; sscore real; sent text;
   submitted timestamptz; yr int; qtr int; cohort text; age text;
   is_field boolean; tenure_v text; deliv text; typ text; chan text; src text; q2 text; q3 text;
@@ -133,6 +137,24 @@ begin
           (response_id, question_code, value_raw, value_raw_type, value_numeric, value_normalized)
         values (resp_id, qc, raw_scale::text, 'numeric', raw_scale, norm);
       end loop;
+
+      -- Categorical / choice / yes-no answers — value_raw only (mapping later).
+      if is_field then
+        age_years := 18 + floor(random() * 57)::int;
+        insert into public.survey_answers (response_id, question_code, value_raw, value_raw_type, value_numeric) values
+          (resp_id, 'FS_AGE', age_years::text, 'numeric', age_years);
+        insert into public.survey_answers (response_id, question_code, value_raw, value_raw_type) values
+          (resp_id, 'FS_ACCESS_COHORT', floor(random()*4)::text, 'categorical'),
+          (resp_id, 'FS_PROXIMITY', proximities[1 + floor(random()*4)::int], 'categorical'),
+          (resp_id, 'FS_WELLBEING_AWARE', well_opts[1 + floor(random()*3)::int], 'categorical');
+      else
+        off1 := 1 + floor(random()*5)::int;
+        off2 := 1 + ((off1 + floor(random()*4)::int) % 5);  -- distinct 2nd choice
+        insert into public.survey_answers (response_id, question_code, value_raw, value_raw_type) values
+          (resp_id, 'OL_ENERGY_KNOW', case when random() < 0.6 then 'Yes' else 'No' end, 'categorical'),
+          (resp_id, 'OL_OFFERING_1', offerings[off1], 'multi'),
+          (resp_id, 'OL_OFFERING_2', offerings[off2], 'multi');
+      end if;
 
       -- Open text: raw string + sentiment (no numeric).
       insert into public.survey_answers

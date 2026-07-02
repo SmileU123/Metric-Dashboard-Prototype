@@ -15,17 +15,32 @@ import type {
   KpiThreshold,
   KpiTimeseriesPoint,
   RawResponse,
+  SurveyQuestion,
   SurveyResponse,
   Tenant,
 } from "./types";
 import {
   SEED_KPI_CONFIG,
+  SEED_QUESTIONS,
   SEED_RAW_RESPONSES,
   SEED_RESPONSES,
   SEED_TENANTS,
 } from "./seed";
 
 export const dataSource = isSupabaseConfigured ? "supabase" : "seed";
+
+// Question catalog (survey_questions) — drives the Raw Data page columns.
+export async function fetchSurveyQuestions(): Promise<SurveyQuestion[]> {
+  if (!supabase) return SEED_QUESTIONS;
+  const { data, error } = await supabase
+    .from("survey_questions")
+    .select("code,channel,seq,short_label,response_type")
+    .eq("is_active", true)
+    .order("channel")
+    .order("seq");
+  if (error) throw error;
+  return data as SurveyQuestion[];
+}
 
 // Raw survey data for the Raw Data page: each response with its verbatim
 // per-question answers (survey_answers). Seed mode derives raw from the

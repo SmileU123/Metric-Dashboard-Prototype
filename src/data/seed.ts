@@ -11,7 +11,7 @@ import type {
   Tenant,
 } from "./types";
 import { FILTER_DEFS, ALL_IMPACT_COLUMNS } from "@/config/defensiveDesign";
-import type { RawResponse } from "./types";
+import type { RawAnswer, RawResponse, SurveyQuestion } from "./types";
 
 export const SEED_TENANTS: Tenant[] = [
   {
@@ -250,30 +250,71 @@ function buildResponses(): SurveyResponse[] {
 
 export const SEED_RESPONSES: SurveyResponse[] = buildResponses();
 
-// Raw view (seed mode): derive raw Likert 1-5 back from the normalized columns
-// so the Raw Data page works without a backend. Live mode reads the true
-// stored value_raw from survey_answers.
-const rawScale = (norm: number) => Math.round(norm / 25) + 1; // 0→1 … 100→5
+// Question catalog (mirrors 0004 seed) — drives the Raw Data page columns.
+export const SEED_QUESTIONS: SurveyQuestion[] = [
+  { code: "FS_AGE", channel: "field", seq: 1, short_label: "Age", response_type: "numeric" },
+  { code: "FS_ACCESS_COHORT", channel: "field", seq: 2, short_label: "Accessibility & Mobility Cohort", response_type: "single_choice" },
+  { code: "FS_PROXIMITY", channel: "field", seq: 3, short_label: "Local Proximity", response_type: "single_choice" },
+  { code: "FS_PUBLIC_SPACE", channel: "field", seq: 4, short_label: "Public Space Sentiment", response_type: "scale_1_5" },
+  { code: "FS_GRIEVANCE", channel: "field", seq: 5, short_label: "Grievance & Communication", response_type: "scale_1_5" },
+  { code: "FS_WELLBEING_AWARE", channel: "field", seq: 6, short_label: "Wellbeing/Offerings Awareness", response_type: "single_choice" },
+  { code: "FS_OPEN", channel: "field", seq: 7, short_label: "Constructive Suggestion", response_type: "open_text" },
+  { code: "OL_GREEN_INFRA", channel: "online", seq: 1, short_label: "Green Infra & Efficiency", response_type: "scale_1_5" },
+  { code: "OL_ENERGY_KNOW", channel: "online", seq: 2, short_label: "Knows Energy Settings", response_type: "yes_no" },
+  { code: "OL_ACTIVE_TRAVEL", channel: "online", seq: 3, short_label: "Recycling & Active Travel", response_type: "scale_1_5" },
+  { code: "OL_SECURITY", channel: "online", seq: 4, short_label: "Off-Peak Security", response_type: "scale_1_5" },
+  { code: "OL_PUBLIC_REALM", channel: "online", seq: 5, short_label: "Public Realm Contribution", response_type: "scale_1_5" },
+  { code: "OL_GRIEVANCE", channel: "online", seq: 6, short_label: "Management Responsiveness", response_type: "scale_1_5" },
+  { code: "OL_WELLBEING_AWARE", channel: "online", seq: 7, short_label: "Community & Wellbeing", response_type: "scale_1_5" },
+  { code: "OL_OFFERING_1", channel: "online", seq: 8, short_label: "Top Offering 1", response_type: "multi_choice" },
+  { code: "OL_OFFERING_2", channel: "online", seq: 9, short_label: "Top Offering 2", response_type: "multi_choice" },
+  { code: "OL_OPEN", channel: "online", seq: 10, short_label: "Constructive Suggestion", response_type: "open_text" },
+];
 
-export const SEED_RAW_RESPONSES: RawResponse[] = SEED_RESPONSES.map((r) => ({
-  id: r.id,
-  tenant_id: r.tenant_id,
-  channel: r.channel,
-  temporal_cohort: r.temporal_cohort,
-  q1_demographic: r.q1_demographic,
-  q3_tenure: r.q3_tenure,
-  q10_text: r.q10_text,
-  q10_sentiment: r.q10_sentiment,
-  submitted_at: r.submitted_at,
-  answers: ALL_IMPACT_COLUMNS.filter((c) => r[c] != null).map((c) => {
+// Raw view (seed mode): derive raw Likert 1-5 from the normalized columns and
+// synthesize the categorical answers so the Raw Data page works without a
+// backend. Live mode reads the true stored value_raw from survey_answers.
+const rawScale = (norm: number) => Math.round(norm / 25) + 1; // 0→1 … 100→5
+const rrand = mulberry32(4242);
+const rpick = <T>(a: T[]) => a[Math.floor(rrand() * a.length)];
+const PROX = ["DCW", "LR", "Occ_Ten", "FTV_Passerby"];
+const WELL = ["Yes_POS", "YES_NEG", "NO_NEG"];
+const OFFER = [
+  "Expanded Green Space / Shading",
+  "Community Workshops & Social Events",
+  "Secure Bicycle & EV Infrastructure",
+  "Improved Lighting & Public Safety Measures",
+  "Local Business/Independent Retail Pop-ups",
+];
+
+export const SEED_RAW_RESPONSES: RawResponse[] = SEED_RESPONSES.map((r) => {
+  const scaleAnswers: RawAnswer[] = ALL_IMPACT_COLUMNS.filter((c) => r[c] != null).map((c) => {
     const norm = Number(r[c]);
     const scale = rawScale(norm);
-    return {
-      question_code: c.toUpperCase(),
-      value_raw: String(scale),
-      value_raw_type: "numeric",
-      value_numeric: scale,
-      value_normalized: norm,
-    };
-  }),
-}));
+    return { question_code: c.toUpperCase(), value_raw: String(scale), value_raw_type: "numeric", value_numeric: scale, value_normalized: norm };
+  });
+  const cat: RawAnswer[] = [];
+  if (r.channel === "field") {
+    const age = 18 + Math.floor(rrand() * 57);
+    cat.push({ question_code: "FS_AGE", value_raw: String(age), value_raw_type: "numeric", value_numeric: age, value_normalized: null });
+    cat.push({ question_code: "FS_ACCESS_COHORT", value_raw: String(Math.floor(rrand() * 4)), value_raw_type: "categorical", value_numeric: null, value_normalized: null });
+    cat.push({ question_code: "FS_PROXIMITY", value_raw: rpick(PROX), value_raw_type: "categorical", value_numeric: null, value_normalized: null });
+    cat.push({ question_code: "FS_WELLBEING_AWARE", value_raw: rpick(WELL), value_raw_type: "categorical", value_numeric: null, value_normalized: null });
+  } else {
+    cat.push({ question_code: "OL_ENERGY_KNOW", value_raw: rrand() < 0.6 ? "Yes" : "No", value_raw_type: "categorical", value_numeric: null, value_normalized: null });
+    cat.push({ question_code: "OL_OFFERING_1", value_raw: rpick(OFFER), value_raw_type: "multi", value_numeric: null, value_normalized: null });
+    cat.push({ question_code: "OL_OFFERING_2", value_raw: rpick(OFFER), value_raw_type: "multi", value_numeric: null, value_normalized: null });
+  }
+  return {
+    id: r.id,
+    tenant_id: r.tenant_id,
+    channel: r.channel,
+    temporal_cohort: r.temporal_cohort,
+    q1_demographic: r.q1_demographic,
+    q3_tenure: r.q3_tenure,
+    q10_text: r.q10_text,
+    q10_sentiment: r.q10_sentiment,
+    submitted_at: r.submitted_at,
+    answers: [...scaleAnswers, ...cat],
+  };
+});

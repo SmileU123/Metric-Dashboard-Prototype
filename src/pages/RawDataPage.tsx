@@ -1,27 +1,26 @@
 // Raw Data page — inspect the verbatim captured survey responses (like the two
-// source sheets): a Field vs Online channel toggle, and a Raw / Numeric /
-// Normalized value mode so both the raw capture and its derivations are visible.
+// source sheets). Columns are driven by the question CATALOG, so every field /
+// online question shows — scale, categorical, yes/no and multi-select — with a
+// Field/Online channel toggle and a Raw / Numeric / Normalized value mode.
 // Reads the true stored value_raw from survey_answers (derived in seed mode).
 
 import { useEffect, useMemo, useState } from "react";
 import { PageHeader, Card } from "@/components/ui";
 import { SentimentTag } from "@/components/ScoreBadge";
 import { useApp } from "@/state/AppContext";
-import { fetchRawResponses } from "@/data/repository";
-import { IMPACT_THEMES } from "@/config/defensiveDesign";
+import { fetchRawResponses, fetchSurveyQuestions } from "@/data/repository";
 import { cn } from "@/lib/cn";
-import type { RawAnswer, RawResponse, SurveyChannel } from "@/data/types";
+import type { RawAnswer, RawResponse, SurveyQuestion } from "@/data/types";
 
 const PAGE_SIZE = 30;
 type ValueMode = "raw" | "numeric" | "normalized";
 
-const CHANNELS: { key: Exclude<SurveyChannel, "private_ownership">; label: string }[] = [
+const CHANNELS: { key: "field" | "online"; label: string }[] = [
   { key: "field", label: "Field Survey" },
   { key: "online", label: "Online / QR" },
 ];
-
 const MODES: { key: ValueMode; label: string }[] = [
-  { key: "raw", label: "Raw (1–5)" },
+  { key: "raw", label: "Raw" },
   { key: "numeric", label: "Numeric" },
   { key: "normalized", label: "0–100" },
 ];
@@ -39,6 +38,7 @@ function cellValue(a: RawAnswer | undefined, mode: ValueMode): string {
 export function RawDataPage() {
   const { tenant } = useApp();
   const [rows, setRows] = useState<RawResponse[]>([]);
+  const [questions, setQuestions] = useState<SurveyQuestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,8 +51,13 @@ export function RawDataPage() {
     if (!tenant) return;
     let cancelled = false;
     setLoading(true);
-    fetchRawResponses(tenant.id)
-      .then((r) => !cancelled && (setRows(r), setError(null)))
+    Promise.all([fetchRawResponses(tenant.id), fetchSurveyQuestions()])
+      .then(([r, q]) => {
+        if (cancelled) return;
+        setRows(r);
+        setQuestions(q);
+        setError(null);
+      })
       .catch((e) => !cancelled && setError(String(e?.message ?? e)))
       .finally(() => !cancelled && setLoading(false));
     return () => {
@@ -60,9 +65,14 @@ export function RawDataPage() {
     };
   }, [tenant]);
 
-  // Columns for the selected channel (fs_* for field, ol_* for online).
-  const prefix = channel === "field" ? "fs_" : "ol_";
-  const columns = IMPACT_THEMES.filter((t) => t.column.startsWith(prefix));
+  // A column per catalogued question for this channel (open text shown separately).
+  const columns = useMemo(
+    () =>
+      questions
+        .filter((q) => q.channel === channel && q.response_type !== "open_text")
+        .sort((a, b) => a.seq - b.seq),
+    [questions, channel]
+  );
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -80,23 +90,22 @@ export function RawDataPage() {
   const slice = filtered.slice(current * PAGE_SIZE, current * PAGE_SIZE + PAGE_SIZE);
   const resetPage = () => setPage(0);
 
-  // per-response answer lookup keyed by lowercased question code
   const answerMap = (r: RawResponse) => {
     const m = new Map<string, RawAnswer>();
-    for (const a of r.answers) m.set(a.question_code.toLowerCase(), a);
+    for (const a of r.answers) m.set(a.question_code, a);
     return m;
   };
+
+  const envCols = channel === "online" ? 6 : 5; // Captured, Cohort, Age, [Tenure], Open, Sentiment
 
   return (
     <div>
       <PageHeader
         title="Raw Survey Data"
-        subtitle="Verbatim captured responses — raw value, numeric, and normalized."
+        subtitle="Verbatim captured responses across every question — raw value, numeric, and normalized."
       />
 
-      {/* Controls */}
       <div className="mb-3 flex flex-wrap items-center gap-3">
-        {/* Channel toggle */}
         <div className="inline-flex overflow-hidden rounded-md border border-line">
           {CHANNELS.map((c) => (
             <button
@@ -115,7 +124,6 @@ export function RawDataPage() {
           ))}
         </div>
 
-        {/* Value mode */}
         <div className="inline-flex overflow-hidden rounded-md border border-line">
           {MODES.map((m) => (
             <button
@@ -158,9 +166,9 @@ export function RawDataPage() {
                 <Th>Cohort</Th>
                 <Th>Age</Th>
                 {channel === "online" && <Th>Tenure</Th>}
-                {columns.map((c) => (
-                  <Th key={c.column} className="whitespace-nowrap">
-                    {c.header} ({c.code})
+                {columns.map((q) => (
+                  <Th key={q.code} className="whitespace-nowrap">
+                    {q.short_label}
                   </Th>
                 ))}
                 <Th>Open Text</Th>
@@ -178,9 +186,9 @@ export function RawDataPage() {
                     {channel === "online" && (
                       <Td className="whitespace-nowrap text-muted">{r.q3_tenure}</Td>
                     )}
-                    {columns.map((c) => (
-                      <Td key={c.column} className="text-center tabular-nums">
-                        {cellValue(m.get(c.column), mode)}
+                    {columns.map((q) => (
+                      <Td key={q.code} className="whitespace-nowrap text-center tabular-nums">
+                        {cellValue(m.get(q.code), mode)}
                       </Td>
                     ))}
                     <Td className="max-w-md text-ink">&ldquo;{r.q10_text}&rdquo;</Td>
@@ -192,14 +200,14 @@ export function RawDataPage() {
               })}
               {!loading && slice.length === 0 && (
                 <tr>
-                  <td colSpan={columns.length + 6} className="p-8 text-center text-sm text-muted">
-                    No {channel === "field" ? "field" : "online"} responses match.
+                  <td colSpan={columns.length + envCols} className="p-8 text-center text-sm text-muted">
+                    No {channel} responses match.
                   </td>
                 </tr>
               )}
               {loading && (
                 <tr>
-                  <td colSpan={columns.length + 6} className="p-8 text-center text-sm text-muted">
+                  <td colSpan={columns.length + envCols} className="p-8 text-center text-sm text-muted">
                     Loading raw data…
                   </td>
                 </tr>
@@ -235,8 +243,9 @@ export function RawDataPage() {
       </Card>
 
       <p className="mt-3 text-xs text-muted">
-        Scale answers store the raw Likert 1–5, its numeric value, and the 0–100
-        normalization used by the KPI engine — toggle above to view each.
+        Scale answers show raw Likert 1–5 / numeric / 0–100 via the toggle;
+        categorical, yes/no and multi-select answers show their captured value_raw
+        (numeric mapping to come).
       </p>
     </div>
   );

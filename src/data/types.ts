@@ -180,6 +180,15 @@ export interface KpiComputed extends MetricView {
   calculated_at: string;
 }
 
+// Question catalog entry (survey_questions).
+export interface SurveyQuestion {
+  code: string;
+  channel: string; // field | online | private_ownership | shared
+  seq: number;
+  short_label: string;
+  response_type: string; // scale_1_5 | single_choice | multi_choice | yes_no | numeric | open_text
+}
+
 // Raw survey data (for the Raw Data page). Preserves the verbatim capture.
 export interface RawAnswer {
   question_code: string;
