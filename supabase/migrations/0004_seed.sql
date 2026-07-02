@@ -74,10 +74,13 @@ declare
     'Off-peak lighting near the car park feels unsafe.',
     'The recycling area is often overflowing and hard to access.',
     'Management is slow to respond to estate grievances.'];
+  field_codes  text[] := array['FS_PUBLIC_SPACE','FS_GRIEVANCE'];
+  online_codes text[] := array['OL_GREEN_INFRA','OL_ACTIVE_TRAVEL','OL_SECURITY','OL_PUBLIC_REALM','OL_GRIEVANCE','OL_WELLBEING_AWARE'];
   t text; i int; base real; sscore real; sent text;
   submitted timestamptz; yr int; qtr int; cohort text; age text;
   is_field boolean; tenure_v text; deliv text; typ text; chan text; src text; q2 text; q3 text;
   proj uuid; resp_id uuid; blurb text;
+  codes text[]; qc text; raw_scale numeric; norm numeric;
 begin
   foreach t in array array['northgate','meridian'] loop
     for i in 1..175 loop
@@ -120,23 +123,21 @@ begin
         blurb, sent, sscore
       ) returning id into resp_id;
 
-      if is_field then
-        insert into public.survey_answers (response_id, question_code, value_num) values
-          (resp_id, 'FS_PUBLIC_SPACE', greatest(0, least(100, round((base + (random()-0.5)*24)::numeric, 0)))),
-          (resp_id, 'FS_GRIEVANCE',    greatest(0, least(100, round((base + (random()-0.5)*28)::numeric, 0))));
-        insert into public.survey_answers (response_id, question_code, value_text, sentiment)
-          values (resp_id, 'FS_OPEN', blurb, sent);
-      else
-        insert into public.survey_answers (response_id, question_code, value_num) values
-          (resp_id, 'OL_GREEN_INFRA',     greatest(0, least(100, round((base + (random()-0.5)*22)::numeric, 0)))),
-          (resp_id, 'OL_ACTIVE_TRAVEL',   greatest(0, least(100, round((base + (random()-0.5)*24)::numeric, 0)))),
-          (resp_id, 'OL_SECURITY',        greatest(0, least(100, round((base + (random()-0.5)*26)::numeric, 0)))),
-          (resp_id, 'OL_PUBLIC_REALM',    greatest(0, least(100, round((base + (random()-0.5)*20)::numeric, 0)))),
-          (resp_id, 'OL_GRIEVANCE',       greatest(0, least(100, round((base + (random()-0.5)*28)::numeric, 0)))),
-          (resp_id, 'OL_WELLBEING_AWARE', greatest(0, least(100, round((base + (random()-0.5)*20)::numeric, 0))));
-        insert into public.survey_answers (response_id, question_code, value_text, sentiment)
-          values (resp_id, 'OL_OPEN', blurb, sent);
-      end if;
+      -- Scale answers: keep RAW Likert 1-5 + numeric + 0-100 normalized.
+      codes := case when is_field then field_codes else online_codes end;
+      foreach qc in array codes loop
+        raw_scale := greatest(1, least(5,
+          round((1 + (base + (random()-0.5)*22 - 45) / 11.25)::numeric, 0)));
+        norm := (raw_scale - 1) / 4.0 * 100;
+        insert into public.survey_answers
+          (response_id, question_code, value_raw, value_raw_type, value_numeric, value_normalized)
+        values (resp_id, qc, raw_scale::text, 'numeric', raw_scale, norm);
+      end loop;
+
+      -- Open text: raw string + sentiment (no numeric).
+      insert into public.survey_answers
+        (response_id, question_code, value_raw, value_raw_type, sentiment)
+      values (resp_id, case when is_field then 'FS_OPEN' else 'OL_OPEN' end, blurb, 'text', sent);
     end loop;
   end loop;
 end $$;

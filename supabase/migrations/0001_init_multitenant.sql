@@ -127,15 +127,22 @@ create index survey_responses_typology_idx   on public.survey_responses (respond
 create index survey_responses_submitted_idx   on public.survey_responses (submitted_at desc);
 create index survey_responses_cohort_idx      on public.survey_responses (period_year, period_quarter);
 
--- Per-question answers (EAV). Scale answers are stored pre-normalized to 0-100.
+-- Per-question answers (EAV). Preserves the RAW captured value alongside its
+-- numeric + normalized derivations, so nothing is overwritten:
+--   value_raw        verbatim ('3', 'DCW', 'Yes_POS', open text, 'A | B')
+--   value_raw_type   how to read value_raw (numeric / categorical / text / multi)
+--   value_numeric    numeric interpretation in raw units (Likert 1-5, age years)
+--   value_normalized 0-100 for cross-question KPI aggregation
 create table public.survey_answers (
-  id            uuid primary key default gen_random_uuid(),
-  response_id   uuid not null references public.survey_responses(id) on delete cascade,
-  question_code text not null,
-  value_num     numeric,   -- scales (0-100) / numeric
-  value_text    text,      -- open text
-  value_code    text,      -- chosen option code
-  sentiment     text check (sentiment in ('positive','neutral','negative'))
+  id               uuid primary key default gen_random_uuid(),
+  response_id      uuid not null references public.survey_responses(id) on delete cascade,
+  question_code    text not null,
+  value_raw        text,
+  value_raw_type   text not null default 'text'
+                     check (value_raw_type in ('numeric','categorical','text','multi')),
+  value_numeric    numeric,
+  value_normalized numeric,
+  sentiment        text check (sentiment in ('positive','neutral','negative'))
 );
 create index survey_answers_response_idx on public.survey_answers (response_id);
 create index survey_answers_qcode_idx    on public.survey_answers (question_code);
@@ -144,14 +151,14 @@ create index survey_answers_qcode_idx    on public.survey_answers (question_code
 create view public.v_survey_flat with (security_invoker = on) as
 select
   r.*,
-  (select a.value_num from public.survey_answers a where a.response_id = r.id and a.question_code = 'FS_PUBLIC_SPACE')    as fs_public_space,
-  (select a.value_num from public.survey_answers a where a.response_id = r.id and a.question_code = 'FS_GRIEVANCE')       as fs_grievance,
-  (select a.value_num from public.survey_answers a where a.response_id = r.id and a.question_code = 'OL_GREEN_INFRA')     as ol_green_infra,
-  (select a.value_num from public.survey_answers a where a.response_id = r.id and a.question_code = 'OL_ACTIVE_TRAVEL')   as ol_active_travel,
-  (select a.value_num from public.survey_answers a where a.response_id = r.id and a.question_code = 'OL_SECURITY')        as ol_security,
-  (select a.value_num from public.survey_answers a where a.response_id = r.id and a.question_code = 'OL_PUBLIC_REALM')    as ol_public_realm,
-  (select a.value_num from public.survey_answers a where a.response_id = r.id and a.question_code = 'OL_GRIEVANCE')       as ol_grievance,
-  (select a.value_num from public.survey_answers a where a.response_id = r.id and a.question_code = 'OL_WELLBEING_AWARE') as ol_wellbeing_aware
+  (select a.value_normalized from public.survey_answers a where a.response_id = r.id and a.question_code = 'FS_PUBLIC_SPACE')    as fs_public_space,
+  (select a.value_normalized from public.survey_answers a where a.response_id = r.id and a.question_code = 'FS_GRIEVANCE')       as fs_grievance,
+  (select a.value_normalized from public.survey_answers a where a.response_id = r.id and a.question_code = 'OL_GREEN_INFRA')     as ol_green_infra,
+  (select a.value_normalized from public.survey_answers a where a.response_id = r.id and a.question_code = 'OL_ACTIVE_TRAVEL')   as ol_active_travel,
+  (select a.value_normalized from public.survey_answers a where a.response_id = r.id and a.question_code = 'OL_SECURITY')        as ol_security,
+  (select a.value_normalized from public.survey_answers a where a.response_id = r.id and a.question_code = 'OL_PUBLIC_REALM')    as ol_public_realm,
+  (select a.value_normalized from public.survey_answers a where a.response_id = r.id and a.question_code = 'OL_GRIEVANCE')       as ol_grievance,
+  (select a.value_normalized from public.survey_answers a where a.response_id = r.id and a.question_code = 'OL_WELLBEING_AWARE') as ol_wellbeing_aware
 from public.survey_responses r;
 
 comment on table public.survey_responses is

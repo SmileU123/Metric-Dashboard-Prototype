@@ -87,18 +87,23 @@ kpi_sources.source_key  ──►  survey_questions.code      (KPI = weighted se
 > from `asset_class_state`; kept as a generated column or view for the Pages 2–4
 > cohort screens so nothing downstream breaks.
 
-### 3.3 `survey_answers` — per-question values (EAV)
+### 3.3 `survey_answers` — per-question values (EAV, raw + derived)
+Nothing is overwritten: the verbatim capture and its numeric/normalized
+derivations are all retained.
+
 | Column | Type | Notes |
 |---|---|---|
 | `id` | uuid PK | |
 | `response_id` | uuid → survey_responses (cascade) | |
 | `question_code` | text → survey_questions.code | |
-| `value_num` | numeric null | scales / numeric |
-| `value_text` | text null | open-text payloads |
-| `value_code` | text null | chosen option code |
+| `value_raw` | text | **verbatim** — `'3'`, `'DCW'`, `'Yes_POS'`, open text, `'A \| B'` |
+| `value_raw_type` | text | `numeric` \| `categorical` \| `text` \| `multi` |
+| `value_numeric` | numeric null | numeric interpretation in raw units (Likert 1–5, age) |
+| `value_normalized` | numeric null | 0–100 for cross-question KPI aggregation |
 | `sentiment` | text null | for open_text: positive / neutral / negative |
 
-Indexes on `(response_id)` and `(question_code)`.
+Indexes on `(response_id)` and `(question_code)`. `v_survey_flat` exposes
+`value_normalized` as the impact columns; the raw ledger reads `value_raw`.
 
 ## 4. Question mapping (from the mock workbook)
 
