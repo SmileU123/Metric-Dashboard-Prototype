@@ -10,6 +10,7 @@ import { PageHeader, Card } from "@/components/ui";
 import { SentimentSummary } from "@/components/SentimentFeed";
 import { SentimentTag } from "@/components/ScoreBadge";
 import { useApp } from "@/state/AppContext";
+import { extractKeywords } from "@/lib/keywords";
 import { cn } from "@/lib/cn";
 import type { ResponseSource, Sentiment, SurveyResponse } from "@/data/types";
 
@@ -21,6 +22,12 @@ const CHANNEL_LABEL: Record<ResponseSource, string> = {
 };
 
 const SENTIMENTS: ("all" | Sentiment)[] = ["all", "positive", "neutral", "negative"];
+
+const SENT_STATE: Record<Sentiment, "green" | "amber" | "red"> = {
+  positive: "green",
+  neutral: "amber",
+  negative: "red",
+};
 
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -36,25 +43,44 @@ export function QualitativePage() {
   const [sentiment, setSentiment] = useState<"all" | Sentiment>("all");
   const [channel, setChannel] = useState<"all" | ResponseSource>("all");
   const [search, setSearch] = useState("");
+  const [keyword, setKeyword] = useState<string | null>(null);
   const [page, setPage] = useState(0);
 
+  // Cohort scope (sentiment + channel) — the keyword chart summarises this set.
+  const cohort = useMemo(
+    () =>
+      responses.filter(
+        (r) =>
+          r.q10_text &&
+          (sentiment === "all" || r.q10_sentiment === sentiment) &&
+          (channel === "all" || r.source === channel)
+      ),
+    [responses, sentiment, channel]
+  );
+
+  const keywords = useMemo(() => extractKeywords(cohort, 12), [cohort]);
+  const maxCount = keywords[0]?.count ?? 1;
+
+  // Ledger = cohort narrowed by the free-text search and the active keyword.
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return responses.filter(
+    const k = keyword?.toLowerCase();
+    return cohort.filter(
       (r) =>
-        r.q10_text &&
-        (sentiment === "all" || r.q10_sentiment === sentiment) &&
-        (channel === "all" || r.source === channel) &&
-        (q === "" || r.q10_text.toLowerCase().includes(q))
+        (q === "" || r.q10_text.toLowerCase().includes(q)) &&
+        (!k || r.q10_text.toLowerCase().includes(k))
     );
-  }, [responses, sentiment, channel, search]);
+  }, [cohort, search, keyword]);
 
-  // Reset to first page whenever the filter set changes.
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const current = Math.min(page, pageCount - 1);
   const slice = filtered.slice(current * PAGE_SIZE, current * PAGE_SIZE + PAGE_SIZE);
 
   const resetPage = () => setPage(0);
+  const toggleKeyword = (term: string) => {
+    setKeyword((k) => (k === term ? null : term));
+    resetPage();
+  };
 
   return (
     <div>
@@ -66,6 +92,51 @@ export function QualitativePage() {
       <div className="mb-6">
         <SentimentSummary rows={filtered} />
       </div>
+
+      {/* Keyword frequency — click a term to filter the ledger below */}
+      {keywords.length > 0 && (
+        <Card className="mb-4 p-5">
+          <div className="flex items-baseline justify-between">
+            <p className="text-sm font-medium text-muted">
+              Top keywords in open feedback
+            </p>
+            <p className="text-xs text-muted">
+              bar colour = dominant sentiment · click to filter
+            </p>
+          </div>
+          <div className="mt-3 grid grid-cols-1 gap-x-8 gap-y-1.5 lg:grid-cols-2">
+            {keywords.map((k) => {
+              const active = k.term === keyword;
+              return (
+                <button
+                  key={k.term}
+                  onClick={() => toggleKeyword(k.term)}
+                  className={cn(
+                    "group flex items-center gap-3 rounded px-2 py-1 text-left transition-colors hover:bg-canvas",
+                    active && "bg-canvas ring-1 ring-brand/50"
+                  )}
+                >
+                  <span className="w-28 shrink-0 truncate text-xs font-medium capitalize text-ink">
+                    {k.term}
+                  </span>
+                  <span className="relative h-3 flex-1 overflow-hidden rounded-full bg-line/60">
+                    <span
+                      className="absolute inset-y-0 left-0 rounded-full"
+                      style={{
+                        width: `${(k.count / maxCount) * 100}%`,
+                        backgroundColor: `rgb(var(--state-${SENT_STATE[k.sentiment]}))`,
+                      }}
+                    />
+                  </span>
+                  <span className="w-8 shrink-0 text-right text-xs tabular-nums text-muted">
+                    {k.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </Card>
+      )}
 
       {/* Investigative controls */}
       <div className="mb-3 flex flex-wrap items-center gap-3">
@@ -113,8 +184,21 @@ export function QualitativePage() {
             resetPage();
           }}
           placeholder="Search open-text feedback…"
-          className="h-9 min-w-[16rem] flex-1 rounded-md border border-line bg-surface px-3 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-brand/40"
+          className="h-9 min-w-[12rem] flex-1 rounded-md border border-line bg-surface px-3 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-brand/40"
         />
+
+        {/* Active keyword filter */}
+        {keyword && (
+          <button
+            onClick={() => {
+              setKeyword(null);
+              resetPage();
+            }}
+            className="inline-flex h-9 items-center gap-1.5 rounded-md bg-brand/10 px-3 text-sm font-medium text-brand hover:bg-brand/20"
+          >
+            keyword: {keyword} <span className="text-brand/70">✕</span>
+          </button>
+        )}
       </div>
 
       {/* Ledger */}
