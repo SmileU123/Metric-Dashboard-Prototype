@@ -15,7 +15,7 @@ create table public.kpi_timeseries (
   kpi_id           uuid not null references public.kpi_definition(id) on delete cascade,
   tenant_id        text not null references public.tenants(id) on delete cascade,
   project_id       uuid references public.projects(id) on delete cascade,
-  period           text not null,                 -- 'YYYY-MM'
+  period           text not null,                 -- 'YYYY-Qn'
   value            numeric not null,
   compliance_state text not null check (compliance_state in ('green','amber','red')),
   created_at       timestamptz not null default now(),
@@ -40,7 +40,7 @@ declare
   i       integer;
   qstart  date;
   qend    date;
-  period  text;
+  v_period text;
   weights numeric[];
   means   numeric[];
   sval    numeric;
@@ -52,7 +52,7 @@ begin
   for i in 0 .. (p_quarters - 1) loop
     qstart := (date_trunc('quarter', now()) - make_interval(months => (p_quarters - 1 - i) * 3))::date;
     qend   := (qstart + interval '3 months')::date;
-    period := to_char(qstart, 'YYYY') || '-Q' || extract(quarter from qstart)::int;
+    v_period := to_char(qstart, 'YYYY') || '-Q' || extract(quarter from qstart)::int;
 
     for d in
       select * from kpi_definition
@@ -127,7 +127,7 @@ begin
       end if;
 
       insert into kpi_timeseries (kpi_id, tenant_id, period, value, compliance_state)
-      values (d.id, p_tenant, period, round(kval, 1), st)
+      values (d.id, p_tenant, v_period, round(kval, 1), st)
       on conflict (kpi_id, tenant_id, period)
       do update set value = excluded.value,
                     compliance_state = excluded.compliance_state,
