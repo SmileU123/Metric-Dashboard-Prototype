@@ -10,7 +10,7 @@ import { PageHeader, Card } from "@/components/ui";
 import { SentimentSummary } from "@/components/SentimentFeed";
 import { SentimentTag } from "@/components/ScoreBadge";
 import { useApp } from "@/state/AppContext";
-import { extractKeywords } from "@/lib/keywords";
+import { extractThemes, responseMatchesTheme } from "@/config/textThemes";
 import { cn } from "@/lib/cn";
 import type { ResponseSource, Sentiment, SurveyResponse } from "@/data/types";
 
@@ -43,10 +43,10 @@ export function QualitativePage() {
   const [sentiment, setSentiment] = useState<"all" | Sentiment>("all");
   const [channel, setChannel] = useState<"all" | ResponseSource>("all");
   const [search, setSearch] = useState("");
-  const [keyword, setKeyword] = useState<string | null>(null);
+  const [theme, setTheme] = useState<string | null>(null);
   const [page, setPage] = useState(0);
 
-  // Cohort scope (sentiment + channel) — the keyword chart summarises this set.
+  // Cohort scope (sentiment + channel) — the theme chart summarises this set.
   const cohort = useMemo(
     () =>
       responses.filter(
@@ -58,27 +58,26 @@ export function QualitativePage() {
     [responses, sentiment, channel]
   );
 
-  const keywords = useMemo(() => extractKeywords(cohort, 12), [cohort]);
-  const maxCount = keywords[0]?.count ?? 1;
+  const themes = useMemo(() => extractThemes(cohort, 8), [cohort]);
+  const maxCount = themes[0]?.count ?? 1;
 
-  // Ledger = cohort narrowed by the free-text search and the active keyword.
+  // Ledger = cohort narrowed by the free-text search and the active theme.
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const k = keyword?.toLowerCase();
     return cohort.filter(
       (r) =>
         (q === "" || r.q10_text.toLowerCase().includes(q)) &&
-        (!k || r.q10_text.toLowerCase().includes(k))
+        (!theme || responseMatchesTheme(r, theme))
     );
-  }, [cohort, search, keyword]);
+  }, [cohort, search, theme]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const current = Math.min(page, pageCount - 1);
   const slice = filtered.slice(current * PAGE_SIZE, current * PAGE_SIZE + PAGE_SIZE);
 
   const resetPage = () => setPage(0);
-  const toggleKeyword = (term: string) => {
-    setKeyword((k) => (k === term ? null : term));
+  const toggleTheme = (label: string) => {
+    setTheme((t) => (t === label ? null : label));
     resetPage();
   };
 
@@ -93,43 +92,51 @@ export function QualitativePage() {
         <SentimentSummary rows={filtered} />
       </div>
 
-      {/* Keyword frequency — click a term to filter the ledger below */}
-      {keywords.length > 0 && (
+      {/* Thematic clustering — click a theme to filter the ledger below */}
+      {themes.length > 0 && (
         <Card className="mb-4 p-5">
           <div className="flex items-baseline justify-between">
             <p className="text-sm font-medium text-muted">
-              Top keywords in open feedback
+              Recurring themes in open feedback
             </p>
-            <p className="text-xs text-muted">
-              bar colour = dominant sentiment · click to filter
-            </p>
+            <p className="text-xs text-muted">click a theme to filter the ledger</p>
           </div>
-          <div className="mt-3 grid grid-cols-1 gap-x-8 gap-y-1.5 lg:grid-cols-2">
-            {keywords.map((k) => {
-              const active = k.term === keyword;
+          <div className="mt-4 space-y-2">
+            {themes.map((th) => {
+              const active = th.label === theme;
+              const state = SENT_STATE[th.sentiment];
               return (
                 <button
-                  key={k.term}
-                  onClick={() => toggleKeyword(k.term)}
+                  key={th.label}
+                  onClick={() => toggleTheme(th.label)}
                   className={cn(
-                    "group flex items-center gap-3 rounded px-2 py-1 text-left transition-colors hover:bg-canvas",
+                    "flex w-full items-center gap-3 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-canvas",
                     active && "bg-canvas ring-1 ring-brand/50"
                   )}
                 >
-                  <span className="w-28 shrink-0 truncate text-xs font-medium capitalize text-ink">
-                    {k.term}
+                  <span className="w-52 shrink-0 truncate text-sm font-semibold text-ink">
+                    {th.label}
                   </span>
-                  <span className="relative h-3 flex-1 overflow-hidden rounded-full bg-line/60">
+                  <span className="relative h-2.5 flex-1 overflow-hidden rounded-full bg-line/60">
                     <span
                       className="absolute inset-y-0 left-0 rounded-full"
                       style={{
-                        width: `${(k.count / maxCount) * 100}%`,
-                        backgroundColor: `rgb(var(--state-${SENT_STATE[k.sentiment]}))`,
+                        width: `${(th.count / maxCount) * 100}%`,
+                        backgroundColor: `rgb(var(--state-${state}))`,
                       }}
                     />
                   </span>
-                  <span className="w-8 shrink-0 text-right text-xs tabular-nums text-muted">
-                    {k.count}
+                  <span className="w-24 shrink-0 text-right text-xs tabular-nums text-muted">
+                    ({th.count} mentions)
+                  </span>
+                  <span className="flex w-28 shrink-0 items-center gap-1.5 text-xs">
+                    <span
+                      className="h-2.5 w-2.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: `rgb(var(--state-${state}))` }}
+                    />
+                    <span className="font-medium capitalize text-ink">
+                      {th.pct}% {th.sentiment}
+                    </span>
                   </span>
                 </button>
               );
@@ -187,16 +194,16 @@ export function QualitativePage() {
           className="h-9 min-w-[12rem] flex-1 rounded-md border border-line bg-surface px-3 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-brand/40"
         />
 
-        {/* Active keyword filter */}
-        {keyword && (
+        {/* Active theme filter */}
+        {theme && (
           <button
             onClick={() => {
-              setKeyword(null);
+              setTheme(null);
               resetPage();
             }}
             className="inline-flex h-9 items-center gap-1.5 rounded-md bg-brand/10 px-3 text-sm font-medium text-brand hover:bg-brand/20"
           >
-            keyword: {keyword} <span className="text-brand/70">✕</span>
+            theme: {theme} <span className="text-brand/70">✕</span>
           </button>
         )}
       </div>
