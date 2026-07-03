@@ -55,6 +55,29 @@ function sourceMeans(
   return out;
 }
 
+// "50/50 by tenure": mean of the source per tenure group (BTR vs private sale),
+// then the average of the group means — each tenure counts equally regardless
+// of sample size. Falls back to the single available group.
+function tenureSplitMean(
+  source: KpiSource,
+  rows: SurveyResponse[]
+): number | null {
+  const groups = new Map<string, number[]>();
+  for (const r of rows) {
+    if (!r.tenure) continue;
+    const v = Number((r as unknown as Record<string, unknown>)[source.source_key]);
+    if (!Number.isFinite(v)) continue;
+    const g = groups.get(r.tenure) ?? [];
+    g.push(transform(v, source.transformation));
+    groups.set(r.tenure, g);
+  }
+  if (groups.size === 0) return null;
+  const means = [...groups.values()].map(
+    (g) => g.reduce((a, n) => a + n, 0) / g.length
+  );
+  return means.reduce((a, n) => a + n, 0) / means.length;
+}
+
 // Combine the source means according to the KPI's calculation_type, then clamp
 // to the formula's normalization range.
 function kpiValue(
@@ -63,6 +86,15 @@ function kpiValue(
   formula: KpiFormula | undefined,
   rows: SurveyResponse[]
 ): number {
+  const lo0 = formula?.normalization_min ?? 0;
+  const hi0 = formula?.normalization_max ?? 100;
+
+  if (def.calculation_type === "direct_tenure_split") {
+    const src = sources.find((s) => s.is_active);
+    const v = src ? tenureSplitMean(src, rows) : null;
+    return clamp(v ?? 0, lo0, hi0);
+  }
+
   const parts = sourceMeans(sources, rows);
   if (parts.length === 0) return 0;
 

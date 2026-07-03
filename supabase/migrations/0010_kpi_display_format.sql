@@ -18,6 +18,6 @@ update public.kpi_definition
 set unit_type = 'points', display_format = 'fixed_1dp'
 where tenant_id is null
   and kpi_code in (
-    'LOCAL_ENV_QUALITY','PR_SAFETY_ACCESS','SUS_MOBILITY',
+    'ENV_QUALITY','PR_SAFETY_ACCESS','CIRC_MOBILITY',
     'SUSTAINABILITY','COMMUNITY_WELLBEING','HOUSING_AFFORDABILITY'
   );

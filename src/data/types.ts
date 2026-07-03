@@ -61,16 +61,18 @@ export interface SurveyResponse {
   q3_tenure: string; // tenure label
 
   // Impact questions by code (0-100 after normalization; null if not asked)
-  fs_public_space: number | null; // Field Q4 — Public Space Sentiment
+  fs_public_space: number | null; // Field Q4 — Environmental Quality / Public Space
   fs_grievance: number | null; // Field Q5 — Grievance & Communication
-  ol_green_infra: number | null; // Online — Green infra & efficiency
-  ol_active_travel: number | null; // Online — Recycling / active travel
-  ol_security: number | null; // Online — Off-peak security
-  ol_public_realm: number | null; // Online — Public realm contribution
-  ol_grievance: number | null; // Online — Management listens / grievance
-  ol_wellbeing_aware: number | null; // Online — Community/wellness awareness
+  fs_wellbeing_aware: number | null; // Field Q6 — awareness, scored 100/50/0
+  ol_cost_manageable: number | null; // Online Q3 — cost manageability (agreement 1-5)
+  ol_energy_know: number | null; // Online Q4 — Yes/No scored 100/0
+  ol_active_travel: number | null; // Online Q5 — Recycling / active travel
+  ol_security: number | null; // Online Q6 — Off-peak security
+  ol_public_realm: number | null; // Online Q7 — Public realm contribution
+  ol_grievance: number | null; // Online Q8 — Management listens / grievance
+  ol_wellbeing_aware: number | null; // Online Q9 — Community/wellness awareness
 
-  // Placeholder KPI input (no survey question exists — external in production)
+  // Legacy placeholder input (retired — Housing Affordability now survey-backed)
   housing_cost_to_income: number | null;
 
   // Open text (Field Q7 / Online Q10) + sentiment
@@ -102,7 +104,8 @@ export type KpiCalcType =
   | "weighted_sum"
   | "ratio"
   | "index"
-  | "direct";
+  | "direct"
+  | "direct_tenure_split"; // 50/50 by tenure (BTR vs private sale)
 export type KpiUnitType = "score" | "percentage" | "ratio" | "points";
 export type KpiDisplayFormat = "raw" | "percent" | "fixed_1dp";
 export type KpiSourceType = "survey" | "external" | "computed";

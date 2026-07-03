@@ -29,7 +29,7 @@ create table public.kpi_definition (
   display_format   text not null default 'fixed_1dp'
                      check (display_format in ('raw','percent','fixed_1dp')),
   calculation_type text not null default 'weighted_average'
-                     check (calculation_type in ('weighted_average','weighted_sum','ratio','index','direct')),
+                     check (calculation_type in ('weighted_average','weighted_sum','ratio','index','direct','direct_tenure_split')),
   is_composite     boolean not null default false,
   is_active        boolean not null default true,
   display_order    smallint not null default 0,
@@ -149,34 +149,74 @@ begin
     where r.tenant_id = p_tenant
       and (p_project is null or r.project_id = p_project);
 
-    -- per-source transformed mean
+    -- per-source transformed mean.
+    -- direct_tenure_split: mean per tenure group (btr / private sale), then the
+    -- average of the group means — each tenure counts 50/50 regardless of volume.
     for s in select * from kpi_sources where kpi_id = d.id and is_active loop
-      select avg(
-               case s.transformation
-                 when 'invert_cost_to_income'
-                   then greatest(0, least(100, 100 - (col.v - 25) * 3))
-                 when 'normalize_1_5_to_0_100'
-                   then (col.v - 1) / 4.0 * 100
-                 else col.v
-               end)
-      into sval
-      from v_survey_flat r
-      cross join lateral (
-        select case s.source_key
-                 when 'fs_public_space' then r.fs_public_space
-                 when 'fs_grievance' then r.fs_grievance
-                 when 'ol_green_infra' then r.ol_green_infra
-                 when 'ol_active_travel' then r.ol_active_travel
-                 when 'ol_security' then r.ol_security
-                 when 'ol_public_realm' then r.ol_public_realm
-                 when 'ol_grievance' then r.ol_grievance
-                 when 'ol_wellbeing_aware' then r.ol_wellbeing_aware
-                 when 'housing_cost_to_income' then r.housing_cost_to_income
-                 else null
-               end::numeric as v
-      ) col
-      where r.tenant_id = p_tenant
-        and (p_project is null or r.project_id = p_project);
+      if d.calculation_type = 'direct_tenure_split' then
+        select avg(g.tenure_mean) into sval
+        from (
+          select avg(
+                   case s.transformation
+                     when 'invert_cost_to_income'
+                       then greatest(0, least(100, 100 - (col.v - 25) * 3))
+                     when 'normalize_1_5_to_0_100'
+                       then (col.v - 1) / 4.0 * 100
+                     else col.v
+                   end) as tenure_mean
+          from v_survey_flat r
+          cross join lateral (
+            select case s.source_key
+                     when 'fs_public_space' then r.fs_public_space
+                     when 'fs_grievance' then r.fs_grievance
+                     when 'fs_wellbeing_aware' then r.fs_wellbeing_aware
+                     when 'ol_cost_manageable' then r.ol_cost_manageable
+                     when 'ol_energy_know' then r.ol_energy_know
+                     when 'ol_active_travel' then r.ol_active_travel
+                     when 'ol_security' then r.ol_security
+                     when 'ol_public_realm' then r.ol_public_realm
+                     when 'ol_grievance' then r.ol_grievance
+                     when 'ol_wellbeing_aware' then r.ol_wellbeing_aware
+                     when 'housing_cost_to_income' then r.housing_cost_to_income
+                     else null
+                   end::numeric as v
+          ) col
+          where r.tenant_id = p_tenant
+            and (p_project is null or r.project_id = p_project)
+            and r.tenure is not null
+            and col.v is not null
+          group by r.tenure
+        ) g;
+      else
+        select avg(
+                 case s.transformation
+                   when 'invert_cost_to_income'
+                     then greatest(0, least(100, 100 - (col.v - 25) * 3))
+                   when 'normalize_1_5_to_0_100'
+                     then (col.v - 1) / 4.0 * 100
+                   else col.v
+                 end)
+        into sval
+        from v_survey_flat r
+        cross join lateral (
+          select case s.source_key
+                   when 'fs_public_space' then r.fs_public_space
+                   when 'fs_grievance' then r.fs_grievance
+                   when 'fs_wellbeing_aware' then r.fs_wellbeing_aware
+                   when 'ol_cost_manageable' then r.ol_cost_manageable
+                   when 'ol_energy_know' then r.ol_energy_know
+                   when 'ol_active_travel' then r.ol_active_travel
+                   when 'ol_security' then r.ol_security
+                   when 'ol_public_realm' then r.ol_public_realm
+                   when 'ol_grievance' then r.ol_grievance
+                   when 'ol_wellbeing_aware' then r.ol_wellbeing_aware
+                   when 'housing_cost_to_income' then r.housing_cost_to_income
+                   else null
+                 end::numeric as v
+        ) col
+        where r.tenant_id = p_tenant
+          and (p_project is null or r.project_id = p_project);
+      end if;
 
       if sval is not null then
         weights := weights || s.weight;
@@ -196,6 +236,8 @@ begin
           select sum(w * m) into kval from unnest(weights, means) as x(w, m);
         when 'direct' then
           kval := means[1];
+        when 'direct_tenure_split' then
+          kval := means[1];  -- already tenure-balanced above
         else -- weighted_average, index
           select sum(w * m) / nullif(sum(w), 0) into kval
           from unnest(weights, means) as x(w, m);
@@ -262,51 +304,49 @@ create policy kpi_runlog_read on public.kpi_runlog
 insert into public.kpi_definition
   (tenant_id, kpi_code, kpi_name, description, category, unit, unit_type, display_format, calculation_type, is_composite, display_order)
 values
-  (null,'LOCAL_ENV_QUALITY','Local Health & Environmental Quality','Composite of environmental/health quality and wellbeing signal.','environmental','pts','points','fixed_1dp','weighted_average',true,1),
-  (null,'PR_SAFETY_ACCESS','Public Realm Safety & Accessibility','Perception of safety, lighting, inclusivity and access of open spaces.','public_realm','pts','points','fixed_1dp','weighted_average',true,2),
-  (null,'SUS_MOBILITY','Sustainable Mobility Integration','Satisfaction with low-carbon transit, cycle storage and access.','mobility','pts','points','fixed_1dp','direct',false,3),
-  (null,'SUSTAINABILITY','Sustainability Performance','Composite sustainability and environmental-quality signal.','sustainability','pts','points','fixed_1dp','weighted_average',true,4),
-  (null,'COMMUNITY_WELLBEING','Community Wellbeing & Belonging','Belonging, community and overall wellbeing themes.','community','pts','points','fixed_1dp','weighted_average',true,5),
-  (null,'HOUSING_AFFORDABILITY','Housing Affordability','Cost-to-income ratio inverted to a 0–100 affordability score (higher = more affordable).','housing','pts','points','fixed_1dp','direct',false,6);
+  (null,'ENV_QUALITY','Environmental Quality','Dust, noise, air and mobility impact of the site, and mitigation efforts (plants, murals, etc.).','environmental','pts','points','fixed_1dp','direct',false,1),
+  (null,'PR_SAFETY_ACCESS','Public Realm Safety & Accessibility','Perception of safety, security and quality of the shared public realm.','public_realm','pts','points','fixed_1dp','weighted_average',true,2),
+  (null,'CIRC_MOBILITY','Circularity & Mobility Integration','Intuitiveness and uptake of recycling and active-travel infrastructure.','mobility','pts','points','fixed_1dp','direct',false,3),
+  (null,'SUSTAINABILITY','Sustainability Performance','Understanding of how to use the development''s sustainability features (50/50 by tenure).','sustainability','pts','points','fixed_1dp','direct_tenure_split',false,4),
+  (null,'COMMUNITY_WELLBEING','Community Wellbeing & Belonging','Awareness of community events, green space and wellness initiatives (field + online).','community','pts','points','fixed_1dp','weighted_average',true,5),
+  (null,'HOUSING_AFFORDABILITY','Operational Housing Affordability','Agreement that living costs in the development are manageable and sustainable (50/50 by tenure).','housing','pts','points','fixed_1dp','direct_tenure_split',false,6);
 
 -- Sources (source_key = survey column; weight; transformation)
 insert into public.kpi_sources (kpi_id, source_type, source_key, weight, transformation)
 select id, 'survey', k, w, tr from (values
-  ('LOCAL_ENV_QUALITY','ol_green_infra',0.6,'passthrough'),
-  ('LOCAL_ENV_QUALITY','ol_wellbeing_aware',0.4,'passthrough'),
+  ('ENV_QUALITY','fs_public_space',1.0,'passthrough'),
   ('PR_SAFETY_ACCESS','ol_public_realm',0.4,'passthrough'),
   ('PR_SAFETY_ACCESS','ol_security',0.35,'passthrough'),
   ('PR_SAFETY_ACCESS','fs_public_space',0.25,'passthrough'),
-  ('SUS_MOBILITY','ol_active_travel',1.0,'passthrough'),
-  ('SUSTAINABILITY','ol_green_infra',0.7,'passthrough'),
-  ('SUSTAINABILITY','ol_public_realm',0.3,'passthrough'),
+  ('CIRC_MOBILITY','ol_active_travel',1.0,'passthrough'),
+  ('SUSTAINABILITY','ol_energy_know',1.0,'passthrough'),
+  ('COMMUNITY_WELLBEING','fs_wellbeing_aware',0.5,'passthrough'),
   ('COMMUNITY_WELLBEING','ol_wellbeing_aware',0.5,'passthrough'),
-  ('COMMUNITY_WELLBEING','ol_grievance',0.5,'passthrough'),
-  ('HOUSING_AFFORDABILITY','housing_cost_to_income',1.0,'invert_cost_to_income')
+  ('HOUSING_AFFORDABILITY','ol_cost_manageable',1.0,'passthrough')
 ) as v(code,k,w,tr)
 join public.kpi_definition d on d.kpi_code = v.code and d.tenant_id is null;
 
 -- Formula
 insert into public.kpi_formula (kpi_id, formula_type, expression)
 select id, ft, expr from (values
-  ('LOCAL_ENV_QUALITY','weighted_average','OL_GREEN*0.6 + OL_WELLBEING*0.4'),
+  ('ENV_QUALITY','direct','FS_Q4 (environmental quality / physical impact)'),
   ('PR_SAFETY_ACCESS','weighted_average','OL_PUBLIC*0.4 + OL_SECURITY*0.35 + FS_PUBLIC*0.25'),
-  ('SUS_MOBILITY','direct','OL_ACTIVE_TRAVEL'),
-  ('SUSTAINABILITY','weighted_average','OL_GREEN*0.7 + OL_PUBLIC*0.3'),
-  ('COMMUNITY_WELLBEING','weighted_average','OL_WELLBEING*0.5 + OL_GRIEVANCE*0.5'),
-  ('HOUSING_AFFORDABILITY','index','100 - normalize(cost_to_income)  [placeholder]')
+  ('CIRC_MOBILITY','direct','OL_ACTIVE_TRAVEL'),
+  ('SUSTAINABILITY','direct','OL_ENERGY_KNOW (Yes=100/No=0), 50/50 by tenure'),
+  ('COMMUNITY_WELLBEING','weighted_average','FS_WELLBEING*0.5 + OL_WELLBEING*0.5'),
+  ('HOUSING_AFFORDABILITY','direct','OL_COST_MANAGEABLE (agreement 1-5), 50/50 by tenure')
 ) as v(code,ft,expr)
 join public.kpi_definition d on d.kpi_code = v.code and d.tenant_id is null;
 
--- Thresholds
+-- Thresholds (revised: amber floor 40 across the board)
 insert into public.kpi_thresholds (kpi_id, condition_type, green_min, amber_min, red_min)
 select id, 'score_range', g, a, 0 from (values
-  ('LOCAL_ENV_QUALITY',75,50),
-  ('PR_SAFETY_ACCESS',70,45),
-  ('SUS_MOBILITY',70,45),
-  ('SUSTAINABILITY',72,48),
-  ('COMMUNITY_WELLBEING',68,45),
-  ('HOUSING_AFFORDABILITY',65,45)
+  ('ENV_QUALITY',75,40),
+  ('PR_SAFETY_ACCESS',70,40),
+  ('CIRC_MOBILITY',70,40),
+  ('SUSTAINABILITY',70,40),
+  ('COMMUNITY_WELLBEING',65,40),
+  ('HOUSING_AFFORDABILITY',65,40)
 ) as v(code,g,a)
 join public.kpi_definition d on d.kpi_code = v.code and d.tenant_id is null;
 

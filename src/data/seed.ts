@@ -61,47 +61,47 @@ export const SEED_PROJECTS: Project[] = [
   },
 ];
 
-// Six STANDARDIZED (global) KPIs — the KPI engine config (mirrors 0005_kpi_engine.sql).
+// Six STANDARDIZED (global) KPIs — the client's REVISED set (mirrors 0005).
 // tuple: [code, name, description, category, calculation_type, is_composite, unit]
 const KPI_DEFS: Array<
   [string, string, string, string, KpiConfig["definitions"][number]["calculation_type"], boolean, string]
 > = [
-  ["LOCAL_ENV_QUALITY", "Local Health & Environmental Quality", "Composite of environmental/health quality and wellbeing signal.", "environmental", "weighted_average", true, "pts"],
-  ["PR_SAFETY_ACCESS", "Public Realm Safety & Accessibility", "Perception of safety, lighting, inclusivity and access of open spaces.", "public_realm", "weighted_average", true, "pts"],
-  ["SUS_MOBILITY", "Sustainable Mobility Integration", "Satisfaction with low-carbon transit, cycle storage and access.", "mobility", "direct", false, "pts"],
-  ["SUSTAINABILITY", "Sustainability Performance", "Composite sustainability and environmental-quality signal.", "sustainability", "weighted_average", true, "pts"],
-  ["COMMUNITY_WELLBEING", "Community Wellbeing & Belonging", "Belonging, community and overall wellbeing themes.", "community", "weighted_average", true, "pts"],
-  ["HOUSING_AFFORDABILITY", "Housing Affordability", "Cost-to-income ratio inverted to a 0–100 affordability score (higher = more affordable).", "housing", "direct", false, "pts"],
+  ["ENV_QUALITY", "Environmental Quality", "Dust, noise, air and mobility impact of the site, and mitigation efforts (plants, murals, etc.).", "environmental", "direct", false, "pts"],
+  ["PR_SAFETY_ACCESS", "Public Realm Safety & Accessibility", "Perception of safety, security and quality of the shared public realm.", "public_realm", "weighted_average", true, "pts"],
+  ["CIRC_MOBILITY", "Circularity & Mobility Integration", "Intuitiveness and uptake of recycling and active-travel infrastructure.", "mobility", "direct", false, "pts"],
+  ["SUSTAINABILITY", "Sustainability Performance", "Understanding of how to use the development's sustainability features (50/50 by tenure).", "sustainability", "direct_tenure_split", false, "pts"],
+  ["COMMUNITY_WELLBEING", "Community Wellbeing & Belonging", "Awareness of community events, green space and wellness initiatives (field + online).", "community", "weighted_average", true, "pts"],
+  ["HOUSING_AFFORDABILITY", "Operational Housing Affordability", "Agreement that living costs in the development are manageable and sustainable (50/50 by tenure).", "housing", "direct_tenure_split", false, "pts"],
 ];
 
-// source_key (question code) → weight, transformation. Re-tagged to the DRAFT
-// question architecture. Scale answers are pre-normalized to 0-100 by the flat
-// view, so transformation is passthrough (except the cost-to-income placeholder).
+// source_key (question code) → weight, transformation. Scored categoricals
+// (energy Yes/No, field wellbeing awareness) are normalized at ingest, so all
+// sources are passthrough here.
 const KPI_SRC: Record<string, Array<[string, number, KpiConfig["sources"][number]["transformation"]]>> = {
-  LOCAL_ENV_QUALITY: [["ol_green_infra", 0.6, "passthrough"], ["ol_wellbeing_aware", 0.4, "passthrough"]],
+  ENV_QUALITY: [["fs_public_space", 1.0, "passthrough"]],
   PR_SAFETY_ACCESS: [["ol_public_realm", 0.4, "passthrough"], ["ol_security", 0.35, "passthrough"], ["fs_public_space", 0.25, "passthrough"]],
-  SUS_MOBILITY: [["ol_active_travel", 1.0, "passthrough"]],
-  SUSTAINABILITY: [["ol_green_infra", 0.7, "passthrough"], ["ol_public_realm", 0.3, "passthrough"]],
-  COMMUNITY_WELLBEING: [["ol_wellbeing_aware", 0.5, "passthrough"], ["ol_grievance", 0.5, "passthrough"]],
-  HOUSING_AFFORDABILITY: [["housing_cost_to_income", 1.0, "invert_cost_to_income"]],
+  CIRC_MOBILITY: [["ol_active_travel", 1.0, "passthrough"]],
+  SUSTAINABILITY: [["ol_energy_know", 1.0, "passthrough"]],
+  COMMUNITY_WELLBEING: [["fs_wellbeing_aware", 0.5, "passthrough"], ["ol_wellbeing_aware", 0.5, "passthrough"]],
+  HOUSING_AFFORDABILITY: [["ol_cost_manageable", 1.0, "passthrough"]],
 };
 
 const KPI_FORMULA: Record<string, [KpiConfig["formulas"][number]["formula_type"], string]> = {
-  LOCAL_ENV_QUALITY: ["weighted_average", "OL_GREEN*0.6 + OL_WELLBEING*0.4"],
+  ENV_QUALITY: ["direct", "FS_Q4 (environmental quality / physical impact)"],
   PR_SAFETY_ACCESS: ["weighted_average", "OL_PUBLIC*0.4 + OL_SECURITY*0.35 + FS_PUBLIC*0.25"],
-  SUS_MOBILITY: ["direct", "OL_ACTIVE_TRAVEL"],
-  SUSTAINABILITY: ["weighted_average", "OL_GREEN*0.7 + OL_PUBLIC*0.3"],
-  COMMUNITY_WELLBEING: ["weighted_average", "OL_WELLBEING*0.5 + OL_GRIEVANCE*0.5"],
-  HOUSING_AFFORDABILITY: ["index", "100 - normalize(cost_to_income)  [placeholder — external in prod]"],
+  CIRC_MOBILITY: ["direct", "OL_ACTIVE_TRAVEL"],
+  SUSTAINABILITY: ["direct", "OL_ENERGY_KNOW (Yes=100/No=0), 50/50 by tenure"],
+  COMMUNITY_WELLBEING: ["weighted_average", "FS_WELLBEING*0.5 + OL_WELLBEING*0.5"],
+  HOUSING_AFFORDABILITY: ["direct", "OL_COST_MANAGEABLE (agreement 1-5), 50/50 by tenure"],
 };
 
 const KPI_THRESH: Record<string, [number, number]> = {
-  LOCAL_ENV_QUALITY: [75, 50],
-  PR_SAFETY_ACCESS: [70, 45],
-  SUS_MOBILITY: [70, 45],
-  SUSTAINABILITY: [72, 48],
-  COMMUNITY_WELLBEING: [68, 45],
-  HOUSING_AFFORDABILITY: [65, 45],
+  ENV_QUALITY: [75, 40],
+  PR_SAFETY_ACCESS: [70, 40],
+  CIRC_MOBILITY: [70, 40],
+  SUSTAINABILITY: [70, 40],
+  COMMUNITY_WELLBEING: [65, 40],
+  HOUSING_AFFORDABILITY: [65, 40],
 };
 
 export const SEED_KPI_CONFIG: KpiConfig = {
@@ -177,6 +177,8 @@ const BLURBS: Record<Sentiment, string[]> = {
     "Construction noise and dust have gotten worse recently.",
     "Lighting around the open spaces feels poor after dark.",
     "Communication about works has been unclear this month.",
+    "Service charges doubled with zero breakdown of what we pay for.",
+    "Car parking rent went up out of nowhere; costs feel unsustainable.",
   ],
 };
 
@@ -228,10 +230,13 @@ function buildResponses(): SurveyResponse[] {
         q1_demographic: pick(AGE_BRACKETS),
         q2_asset_class: isField ? "In-Construction" : "Completed",
         q3_tenure: isField ? "—" : tenure === "btr" ? "BTR" : "Private Sale",
-        // impact questions by code — only the channel's questions are answered
+        // impact questions by code — only the channel's questions are answered.
+        // Scored categoricals take their discrete normalized values (100/50/0).
         fs_public_space: isField ? S(24) : null,
         fs_grievance: isField ? S(28) : null,
-        ol_green_infra: isField ? null : S(22),
+        fs_wellbeing_aware: isField ? [100, 50, 0][Math.floor(rand() * 3)] : null,
+        ol_cost_manageable: isField ? null : Math.round(S(30) / 25) * 25,
+        ol_energy_know: isField ? null : (rand() < base / 90 ? 100 : 0),
         ol_active_travel: isField ? null : S(24),
         ol_security: isField ? null : S(26),
         ol_public_realm: isField ? null : S(20),
@@ -259,8 +264,8 @@ export const SEED_QUESTIONS: SurveyQuestion[] = [
   { code: "FS_GRIEVANCE", channel: "field", seq: 5, short_label: "Grievance & Communication", response_type: "scale_1_5" },
   { code: "FS_WELLBEING_AWARE", channel: "field", seq: 6, short_label: "Wellbeing/Offerings Awareness", response_type: "single_choice" },
   { code: "FS_OPEN", channel: "field", seq: 7, short_label: "Constructive Suggestion", response_type: "open_text" },
-  { code: "OL_GREEN_INFRA", channel: "online", seq: 1, short_label: "Green Infra & Efficiency", response_type: "scale_1_5" },
-  { code: "OL_ENERGY_KNOW", channel: "online", seq: 2, short_label: "Knows Energy Settings", response_type: "yes_no" },
+  { code: "OL_COST_MANAGEABLE", channel: "online", seq: 1, short_label: "Cost Manageability (Q3)", response_type: "scale_1_5" },
+  { code: "OL_ENERGY_KNOW", channel: "online", seq: 2, short_label: "Knows Energy Settings (Q4)", response_type: "yes_no" },
   { code: "OL_ACTIVE_TRAVEL", channel: "online", seq: 3, short_label: "Recycling & Active Travel", response_type: "scale_1_5" },
   { code: "OL_SECURITY", channel: "online", seq: 4, short_label: "Off-Peak Security", response_type: "scale_1_5" },
   { code: "OL_PUBLIC_REALM", channel: "online", seq: 5, short_label: "Public Realm Contribution", response_type: "scale_1_5" },
@@ -278,7 +283,6 @@ const rawScale = (norm: number) => Math.round(norm / 25) + 1; // 0→1 … 100�
 const rrand = mulberry32(4242);
 const rpick = <T>(a: T[]) => a[Math.floor(rrand() * a.length)];
 const PROX = ["DCW", "LR", "Occ_Ten", "FTV_Passerby"];
-const WELL = ["Yes_POS", "YES_NEG", "NO_NEG"];
 const OFFER = [
   "Expanded Green Space / Shading",
   "Community Workshops & Social Events",
@@ -287,9 +291,18 @@ const OFFER = [
   "Local Business/Independent Retail Pop-ups",
 ];
 
+// Scored categoricals: derive the verbatim raw label back from the normalized value.
+const WELL_BY_NORM: Record<number, string> = { 100: "Yes_POS", 50: "YES_NEG", 0: "NO_NEG" };
+
 export const SEED_RAW_RESPONSES: RawResponse[] = SEED_RESPONSES.map((r) => {
   const scaleAnswers: RawAnswer[] = ALL_IMPACT_COLUMNS.filter((c) => r[c] != null).map((c) => {
     const norm = Number(r[c]);
+    if (c === "ol_energy_know") {
+      return { question_code: "OL_ENERGY_KNOW", value_raw: norm >= 50 ? "Yes" : "No", value_raw_type: "categorical", value_numeric: null, value_normalized: norm };
+    }
+    if (c === "fs_wellbeing_aware") {
+      return { question_code: "FS_WELLBEING_AWARE", value_raw: WELL_BY_NORM[norm] ?? "NO_NEG", value_raw_type: "categorical", value_numeric: null, value_normalized: norm };
+    }
     const scale = rawScale(norm);
     return { question_code: c.toUpperCase(), value_raw: String(scale), value_raw_type: "numeric", value_numeric: scale, value_normalized: norm };
   });
@@ -299,9 +312,7 @@ export const SEED_RAW_RESPONSES: RawResponse[] = SEED_RESPONSES.map((r) => {
     cat.push({ question_code: "FS_AGE", value_raw: String(age), value_raw_type: "numeric", value_numeric: age, value_normalized: null });
     cat.push({ question_code: "FS_ACCESS_COHORT", value_raw: String(Math.floor(rrand() * 4)), value_raw_type: "categorical", value_numeric: null, value_normalized: null });
     cat.push({ question_code: "FS_PROXIMITY", value_raw: rpick(PROX), value_raw_type: "categorical", value_numeric: null, value_normalized: null });
-    cat.push({ question_code: "FS_WELLBEING_AWARE", value_raw: rpick(WELL), value_raw_type: "categorical", value_numeric: null, value_normalized: null });
   } else {
-    cat.push({ question_code: "OL_ENERGY_KNOW", value_raw: rrand() < 0.6 ? "Yes" : "No", value_raw_type: "categorical", value_numeric: null, value_normalized: null });
     cat.push({ question_code: "OL_OFFERING_1", value_raw: rpick(OFFER), value_raw_type: "multi", value_numeric: null, value_normalized: null });
     cat.push({ question_code: "OL_OFFERING_2", value_raw: rpick(OFFER), value_raw_type: "multi", value_numeric: null, value_normalized: null });
   }

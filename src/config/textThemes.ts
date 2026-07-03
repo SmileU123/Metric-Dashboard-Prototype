@@ -20,6 +20,7 @@ export const TEXT_THEMES: TextTheme[] = [
   { label: "Amenities & Community", triggers: ["workshop", "community", "event", "repair", "tool", "courtyard", "pop-up", "retail"] },
   { label: "Management & Communication", triggers: ["management", "communication", "grievance", "update", "notice", "schedule", "respond", "unclear"] },
   { label: "Jobs & Local Economy", triggers: ["job", "business", "employment"] },
+  { label: "Cost & Affordability", triggers: ["cost", "service charge", "bill", "rent", "price", "expensive", "afford", "fee"] },
   { label: "Green & Public Realm", triggers: ["green", "public realm", "public space", "open space", "courtyard", "walk"] },
 ];
 

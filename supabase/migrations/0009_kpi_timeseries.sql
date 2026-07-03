@@ -62,33 +62,73 @@ begin
       means   := '{}';
 
       for s in select * from kpi_sources where kpi_id = d.id and is_active loop
-        select avg(
-                 case s.transformation
-                   when 'invert_cost_to_income'
-                     then greatest(0, least(100, 100 - (col.v - 25) * 3))
-                   when 'normalize_1_5_to_0_100'
-                     then (col.v - 1) / 4.0 * 100
-                   else col.v
-                 end)
-        into sval
-        from v_survey_flat r
-        cross join lateral (
-          select case s.source_key
-                   when 'fs_public_space' then r.fs_public_space
-                   when 'fs_grievance' then r.fs_grievance
-                   when 'ol_green_infra' then r.ol_green_infra
-                   when 'ol_active_travel' then r.ol_active_travel
-                   when 'ol_security' then r.ol_security
-                   when 'ol_public_realm' then r.ol_public_realm
-                   when 'ol_grievance' then r.ol_grievance
-                   when 'ol_wellbeing_aware' then r.ol_wellbeing_aware
-                   when 'housing_cost_to_income' then r.housing_cost_to_income
-                   else null
-                 end::numeric as v
-        ) col
-        where r.tenant_id = p_tenant
-          and r.submitted_at >= qstart
-          and r.submitted_at <  qend;
+        if d.calculation_type = 'direct_tenure_split' then
+          -- 50/50 by tenure: average of the per-tenure means for the quarter.
+          select avg(g.tenure_mean) into sval
+          from (
+            select avg(
+                     case s.transformation
+                       when 'invert_cost_to_income'
+                         then greatest(0, least(100, 100 - (col.v - 25) * 3))
+                       when 'normalize_1_5_to_0_100'
+                         then (col.v - 1) / 4.0 * 100
+                       else col.v
+                     end) as tenure_mean
+            from v_survey_flat r
+            cross join lateral (
+              select case s.source_key
+                       when 'fs_public_space' then r.fs_public_space
+                       when 'fs_grievance' then r.fs_grievance
+                       when 'fs_wellbeing_aware' then r.fs_wellbeing_aware
+                       when 'ol_cost_manageable' then r.ol_cost_manageable
+                       when 'ol_energy_know' then r.ol_energy_know
+                       when 'ol_active_travel' then r.ol_active_travel
+                       when 'ol_security' then r.ol_security
+                       when 'ol_public_realm' then r.ol_public_realm
+                       when 'ol_grievance' then r.ol_grievance
+                       when 'ol_wellbeing_aware' then r.ol_wellbeing_aware
+                       when 'housing_cost_to_income' then r.housing_cost_to_income
+                       else null
+                     end::numeric as v
+            ) col
+            where r.tenant_id = p_tenant
+              and r.submitted_at >= qstart
+              and r.submitted_at <  qend
+              and r.tenure is not null
+              and col.v is not null
+            group by r.tenure
+          ) g;
+        else
+          select avg(
+                   case s.transformation
+                     when 'invert_cost_to_income'
+                       then greatest(0, least(100, 100 - (col.v - 25) * 3))
+                     when 'normalize_1_5_to_0_100'
+                       then (col.v - 1) / 4.0 * 100
+                     else col.v
+                   end)
+          into sval
+          from v_survey_flat r
+          cross join lateral (
+            select case s.source_key
+                     when 'fs_public_space' then r.fs_public_space
+                     when 'fs_grievance' then r.fs_grievance
+                     when 'fs_wellbeing_aware' then r.fs_wellbeing_aware
+                     when 'ol_cost_manageable' then r.ol_cost_manageable
+                     when 'ol_energy_know' then r.ol_energy_know
+                     when 'ol_active_travel' then r.ol_active_travel
+                     when 'ol_security' then r.ol_security
+                     when 'ol_public_realm' then r.ol_public_realm
+                     when 'ol_grievance' then r.ol_grievance
+                     when 'ol_wellbeing_aware' then r.ol_wellbeing_aware
+                     when 'housing_cost_to_income' then r.housing_cost_to_income
+                     else null
+                   end::numeric as v
+          ) col
+          where r.tenant_id = p_tenant
+            and r.submitted_at >= qstart
+            and r.submitted_at <  qend;
+        end if;
 
         if sval is not null then
           weights := weights || s.weight;
@@ -108,6 +148,8 @@ begin
           select sum(w * m) into kval from unnest(weights, means) as x(w, m);
         when 'direct' then
           kval := means[1];
+        when 'direct_tenure_split' then
+          kval := means[1];  -- already tenure-balanced above
         else
           select sum(w * m) / nullif(sum(w), 0) into kval
           from unnest(weights, means) as x(w, m);

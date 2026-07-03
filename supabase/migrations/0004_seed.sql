@@ -29,19 +29,23 @@ insert into public.survey_questions (code, channel, seq, short_label, theme, res
   ('FS_GRIEVANCE','field',5,'Grievance & Communication Confidence','grievance','scale_1_5','GRESB TC 6.1 / TISFD'),
   ('FS_WELLBEING_AWARE','field',6,'Wellbeing/Offerings Awareness','wellbeing','single_choice','GRESB TC 6.1'),
   ('FS_OPEN','field',7,'Constructive Suggestion (voice-to-text)','open_text','open_text',null),
-  ('OL_GREEN_INFRA','online',1,'Green Infrastructure & Efficiency','sustainability','scale_1_5',null),
-  ('OL_ENERGY_KNOW','online',2,'Knows How to Optimize Energy','sustainability','yes_no',null),
-  ('OL_ACTIVE_TRAVEL','online',3,'Recycling & Active Travel','mobility','scale_1_5',null),
-  ('OL_SECURITY','online',4,'Off-Peak Security','safety','scale_1_5',null),
-  ('OL_PUBLIC_REALM','online',5,'Public Realm Contribution','public_realm','scale_1_5',null),
-  ('OL_GRIEVANCE','online',6,'Management Responsiveness','grievance','scale_1_5',null),
-  ('OL_WELLBEING_AWARE','online',7,'Community & Wellbeing Awareness','wellbeing','scale_1_5',null),
-  ('OL_OFFERING_1','online',8,'Top Offering Choice 1','offering','single_choice',null),
-  ('OL_OFFERING_2','online',9,'Top Offering Choice 2','offering','single_choice',null),
-  ('OL_OPEN','online',10,'Constructive Suggestion','open_text','open_text',null),
+  ('OL_COST_MANAGEABLE','online',1,'Cost Manageability (Q3): living costs manageable & sustainable','housing','scale_1_5',null),
+  ('OL_COST_FOLLOWUP','online',2,'Cost Follow-up (Q3B): why costs feel unmanageable','housing','open_text',null),
+  ('OL_ENERGY_KNOW','online',3,'Knows How to Optimize Energy Settings (Q4)','sustainability','yes_no',null),
+  ('OL_ACTIVE_TRAVEL','online',4,'Recycling & Active Travel (Q5)','mobility','scale_1_5',null),
+  ('OL_SECURITY','online',5,'Off-Peak Security (Q6)','safety','scale_1_5',null),
+  ('OL_PUBLIC_REALM','online',6,'Public Realm Contribution (Q7)','public_realm','scale_1_5',null),
+  ('OL_GRIEVANCE','online',7,'Management Responsiveness (Q8)','grievance','scale_1_5',null),
+  ('OL_WELLBEING_AWARE','online',8,'Community & Wellbeing Awareness (Q9)','wellbeing','scale_1_5',null),
+  ('OL_OFFERING_1','online',9,'Top Offering Choice 1 (Q10)','offering','single_choice',null),
+  ('OL_OFFERING_2','online',10,'Top Offering Choice 2 (Q10)','offering','single_choice',null),
+  ('OL_OPEN','online',11,'Constructive Suggestion (Q10B)','open_text','open_text',null),
+  -- Retired in the updated survey architecture (kept for history):
+  ('OL_GREEN_INFRA','online',99,'Green Infrastructure & Efficiency (retired)','sustainability','scale_1_5',null),
   ('PO_PLACEHOLDER','private_ownership',1,'Private Ownership (awaiting sheet)','general','scale_1_5',null)
 on conflict (code) do nothing;
-update public.survey_questions set is_active = false where channel = 'private_ownership';
+update public.survey_questions set is_active = false
+where channel = 'private_ownership' or code = 'OL_GREEN_INFRA';
 
 -- ---- Survey responses (envelope) + answers (EAV) ----------------------------
 -- ~175 rows/tenant across ~5 quarters. Field intercepts (in-construction) answer
@@ -75,9 +79,17 @@ declare
     'The recycling area is often overflowing and hard to access.',
     'Management is slow to respond to estate grievances.'];
   field_codes  text[] := array['FS_PUBLIC_SPACE','FS_GRIEVANCE'];
-  online_codes text[] := array['OL_GREEN_INFRA','OL_ACTIVE_TRAVEL','OL_SECURITY','OL_PUBLIC_REALM','OL_GRIEVANCE','OL_WELLBEING_AWARE'];
+  online_codes text[] := array['OL_COST_MANAGEABLE','OL_ACTIVE_TRAVEL','OL_SECURITY','OL_PUBLIC_REALM','OL_GRIEVANCE','OL_WELLBEING_AWARE'];
   proximities  text[] := array['DCW','LR','Occ_Ten','FTV_Passerby'];
   well_opts    text[] := array['Yes_POS','YES_NEG','NO_NEG'];
+  well_norms   numeric[] := array[100, 50, 0];   -- scored: aware+positive / aware+negative / unaware
+  cost_blurbs  text[] := array[
+    'Service charges doubled with zero breakdown. Feels like we are billed blindly.',
+    'Uncapped community energy network bills - we have no choice in provider.',
+    'Car parking space rent went up by 75 a month out of nowhere.',
+    'The shared hallway electricity bill tripled and management will not explain why.'];
+  well_i       int;
+  cost_raw     numeric;
   offerings    text[] := array['Expanded Green Space / Shading','Community Workshops & Social Events','Secure Bicycle & EV Infrastructure','Improved Lighting & Public Safety Measures','Local Business/Independent Retail Pop-ups'];
   age_years    int; off1 int; off2 int;
   t text; i int; base real; sscore real; sent text;
@@ -128,32 +140,50 @@ begin
       ) returning id into resp_id;
 
       -- Scale answers: keep RAW Likert 1-5 + numeric + 0-100 normalized.
+      cost_raw := null;
       codes := case when is_field then field_codes else online_codes end;
       foreach qc in array codes loop
         raw_scale := greatest(1, least(5,
           round((1 + (base + (random()-0.5)*22 - 45) / 11.25)::numeric, 0)));
         norm := (raw_scale - 1) / 4.0 * 100;
+        if qc = 'OL_COST_MANAGEABLE' then cost_raw := raw_scale; end if;
         insert into public.survey_answers
           (response_id, question_code, value_raw, value_raw_type, value_numeric, value_normalized)
         values (resp_id, qc, raw_scale::text, 'numeric', raw_scale, norm);
       end loop;
 
-      -- Categorical / choice / yes-no answers — value_raw only (mapping later).
+      -- Categorical / choice / yes-no answers. Scored ones carry value_normalized.
       if is_field then
         age_years := 18 + floor(random() * 57)::int;
         insert into public.survey_answers (response_id, question_code, value_raw, value_raw_type, value_numeric) values
           (resp_id, 'FS_AGE', age_years::text, 'numeric', age_years);
+        well_i := 1 + floor(random()*3)::int;
+        insert into public.survey_answers (response_id, question_code, value_raw, value_raw_type, value_normalized) values
+          (resp_id, 'FS_WELLBEING_AWARE', well_opts[well_i], 'categorical', well_norms[well_i]);
         insert into public.survey_answers (response_id, question_code, value_raw, value_raw_type) values
           (resp_id, 'FS_ACCESS_COHORT', floor(random()*4)::text, 'categorical'),
-          (resp_id, 'FS_PROXIMITY', proximities[1 + floor(random()*4)::int], 'categorical'),
-          (resp_id, 'FS_WELLBEING_AWARE', well_opts[1 + floor(random()*3)::int], 'categorical');
+          (resp_id, 'FS_PROXIMITY', proximities[1 + floor(random()*4)::int], 'categorical');
       else
+        -- Energy Yes/No is a scored input (Yes=100 / No=0), skewed by the row baseline.
+        if random() < (base / 90.0) then
+          insert into public.survey_answers (response_id, question_code, value_raw, value_raw_type, value_normalized)
+          values (resp_id, 'OL_ENERGY_KNOW', 'Yes', 'categorical', 100);
+        else
+          insert into public.survey_answers (response_id, question_code, value_raw, value_raw_type, value_normalized)
+          values (resp_id, 'OL_ENERGY_KNOW', 'No', 'categorical', 0);
+        end if;
+
         off1 := 1 + floor(random()*5)::int;
         off2 := 1 + ((off1 + floor(random()*4)::int) % 5);  -- distinct 2nd choice
         insert into public.survey_answers (response_id, question_code, value_raw, value_raw_type) values
-          (resp_id, 'OL_ENERGY_KNOW', case when random() < 0.6 then 'Yes' else 'No' end, 'categorical'),
           (resp_id, 'OL_OFFERING_1', offerings[off1], 'multi'),
           (resp_id, 'OL_OFFERING_2', offerings[off2], 'multi');
+
+        -- Q3B dynamic follow-up: only when cost manageability scored 1-3.
+        if cost_raw is not null and cost_raw <= 3 then
+          insert into public.survey_answers (response_id, question_code, value_raw, value_raw_type, sentiment)
+          values (resp_id, 'OL_COST_FOLLOWUP', cost_blurbs[1 + floor(random()*4)::int], 'text', 'negative');
+        end if;
       end if;
 
       -- Open text: raw string + sentiment (no numeric).

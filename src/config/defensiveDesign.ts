@@ -21,7 +21,9 @@ import type {
 export type ImpactColumn =
   | "fs_public_space"
   | "fs_grievance"
-  | "ol_green_infra"
+  | "fs_wellbeing_aware"
+  | "ol_cost_manageable"
+  | "ol_energy_know"
   | "ol_active_travel"
   | "ol_security"
   | "ol_public_realm"
@@ -37,14 +39,16 @@ export interface ImpactTheme {
 
 // ---- Impact question themes (headers abstracted from literal question text) ---
 export const IMPACT_THEMES: ImpactTheme[] = [
-  { column: "fs_public_space", code: "F-Q4", header: "Public Space Sentiment" },
+  { column: "fs_public_space", code: "F-Q4", header: "Environmental Quality" },
   { column: "fs_grievance", code: "F-Q5", header: "Grievance & Communication" },
-  { column: "ol_green_infra", code: "O-1", header: "Green Infra & Efficiency" },
-  { column: "ol_active_travel", code: "O-3", header: "Recycling & Active Travel" },
-  { column: "ol_security", code: "O-4", header: "Off-Peak Security" },
-  { column: "ol_public_realm", code: "O-5", header: "Public Realm Contribution" },
-  { column: "ol_grievance", code: "O-6", header: "Management Responsiveness" },
-  { column: "ol_wellbeing_aware", code: "O-7", header: "Community & Wellbeing" },
+  { column: "fs_wellbeing_aware", code: "F-Q6", header: "Wellbeing Awareness" },
+  { column: "ol_cost_manageable", code: "O-Q3", header: "Cost Manageability" },
+  { column: "ol_energy_know", code: "O-Q4", header: "Energy Settings Awareness" },
+  { column: "ol_active_travel", code: "O-Q5", header: "Recycling & Active Travel" },
+  { column: "ol_security", code: "O-Q6", header: "Off-Peak Security" },
+  { column: "ol_public_realm", code: "O-Q7", header: "Public Realm Contribution" },
+  { column: "ol_grievance", code: "O-Q8", header: "Management Responsiveness" },
+  { column: "ol_wellbeing_aware", code: "O-Q9", header: "Community & Wellbeing" },
 ];
 
 export const ALL_IMPACT_COLUMNS: ImpactColumn[] = IMPACT_THEMES.map(
@@ -64,9 +68,14 @@ export interface DeepDivePage {
   columns: ImpactColumn[];
 }
 
-const FIELD_COLUMNS: ImpactColumn[] = ["fs_public_space", "fs_grievance"];
+const FIELD_COLUMNS: ImpactColumn[] = [
+  "fs_public_space",
+  "fs_grievance",
+  "fs_wellbeing_aware",
+];
 const ONLINE_COLUMNS: ImpactColumn[] = [
-  "ol_green_infra",
+  "ol_cost_manageable",
+  "ol_energy_know",
   "ol_active_travel",
   "ol_security",
   "ol_public_realm",

@@ -28,8 +28,8 @@ select
   q1_demographic,
   q2_asset_class,
   q3_tenure,
-  fs_public_space, fs_grievance,
-  ol_green_infra, ol_active_travel, ol_security,
+  fs_public_space, fs_grievance, fs_wellbeing_aware,
+  ol_cost_manageable, ol_energy_know, ol_active_travel, ol_security,
   ol_public_realm, ol_grievance, ol_wellbeing_aware,
   q10_sentiment
 from public.v_survey_flat;
@@ -45,7 +45,8 @@ select
   respondent_typology,
   delivery_model,
   count(*)                                     as response_count,
-  round(avg(ol_green_infra)::numeric, 1)       as green_infra_avg,
+  round(avg(ol_cost_manageable)::numeric, 1)   as cost_manageable_avg,
+  round(avg(ol_energy_know)::numeric, 1)       as energy_know_avg,
   round(avg(ol_active_travel)::numeric, 1)     as active_travel_avg,
   round(avg(ol_security)::numeric, 1)          as security_avg,
   round(avg(ol_public_realm)::numeric, 1)      as public_realm_avg,
