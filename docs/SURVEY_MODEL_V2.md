@@ -134,6 +134,11 @@ Indexes on `(response_id)` and `(question_code)`. `v_survey_flat` exposes
 
 ## 5. KPI re-tag (source_key → question codes)
 
+> **Superseded:** the client's Revised 6 KPIs (2026-07-03) replaced this mapping —
+> see [`docs/client/KPI_REFERENCE.md`](client/KPI_REFERENCE.md). The updated
+> workbook also added a third sheet (Online Private Sale), the Online Q3
+> cost-manageability question (+ Q3B follow-up), and retired green-infra.
+
 Sources become question codes; scales normalize 1–5 → 0–100 via the engine's
 `normalize_1_5_to_0_100` transform.
 

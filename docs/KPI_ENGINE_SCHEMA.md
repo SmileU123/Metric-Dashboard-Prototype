@@ -218,6 +218,11 @@ New transformations are added in one place (engine `transform()` + the SQL `CASE
 
 ## 6. Seeded standardized KPIs (global, `tenant_id = NULL`)
 
+> **Superseded:** the KPI set below was revised by the client (2026-07-03). The
+> current authoritative list — including the `direct_tenure_split` (50/50 by
+> tenure) method and the new Online Q3 cost-manageability source — is in
+> [`docs/client/KPI_REFERENCE.md`](client/KPI_REFERENCE.md).
+
 | # | `kpi_code` | Sources (weight) | Formula | Green ≥ / Amber ≥ | Unit |
 |---|---|---|---|---|---|
 | 1 | `LOCAL_ENV_QUALITY` | Q4 (0.6), Q9 (0.4) | weighted_average | 75 / 50 | pts |
