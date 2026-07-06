@@ -84,8 +84,8 @@ export function QualitativePage() {
   return (
     <div>
       <PageHeader
-        title="Open Feedback (Q10)"
-        subtitle="Hard-capped 280-character responses with backend sentiment tagging."
+        title="Qualitative Feedback"
+        subtitle="Open feedback (Q10) — hard-capped 280-character responses with backend sentiment tagging."
       />
 
       <div className="mb-6">

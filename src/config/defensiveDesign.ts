@@ -86,7 +86,7 @@ const ONLINE_COLUMNS: ImpactColumn[] = [
 export const DEEP_DIVE_PAGES: DeepDivePage[] = [
   {
     slug: "construction",
-    title: "Construction-Adjacent",
+    title: "Construction Sites",
     description: "Field intercepts adjacent to active construction sites.",
     typology: "construction_adjacent",
     columns: FIELD_COLUMNS,

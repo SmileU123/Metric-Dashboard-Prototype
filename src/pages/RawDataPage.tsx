@@ -101,7 +101,7 @@ export function RawDataPage() {
   return (
     <div>
       <PageHeader
-        title="Raw Survey Data"
+        title="Full Survey Data"
         subtitle="Verbatim captured responses across every question — raw value, numeric, and normalized."
       />
 

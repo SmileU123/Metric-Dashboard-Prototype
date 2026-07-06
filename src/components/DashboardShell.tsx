@@ -38,21 +38,21 @@ export function DashboardShell({ children }: { children: ReactNode }) {
             Portfolio Metrics
           </NavLink>
           <p className="px-3 pb-1 pt-4 text-[11px] font-semibold uppercase text-muted/70">
-            Deep Dives
+            In-Depth View
           </p>
           {DEEP_DIVE_PAGES.map((p) => (
             <NavLink key={p.slug} to={`/feed/${p.slug}`} className={navItemClass}>
               {p.title}
             </NavLink>
           ))}
-          <p className="px-3 pb-1 pt-4 text-[11px] font-semibold uppercase text-muted/70">
-            Qualitative
-          </p>
           <NavLink to="/qualitative" className={navItemClass}>
-            Open Feedback (Q10)
+            Qualitative Feedback
           </NavLink>
+          <p className="px-3 pb-1 pt-4 text-[11px] font-semibold uppercase text-muted/70">
+            Raw Data
+          </p>
           <NavLink to="/raw" className={navItemClass}>
-            Raw Survey Data
+            Full Survey Data
           </NavLink>
           <p className="px-3 pb-1 pt-4 text-[11px] font-semibold uppercase text-muted/70">
             Configuration
