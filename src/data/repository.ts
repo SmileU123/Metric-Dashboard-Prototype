@@ -144,9 +144,13 @@ export async function fetchResponses(
       filters
     );
   }
+  // Envelope + nested normalized answers. Flattened below into (a) a DYNAMIC
+  // scores map keyed by question code — any catalogued question is available to
+  // the KPI engine with zero schema changes — and (b) the typed impact columns
+  // the UI tables read.
   let query = supabase
-    .from("v_survey_flat") // v2: flat projection of envelope ⋈ answers
-    .select("*")
+    .from("survey_responses")
+    .select("*, survey_answers(question_code, value_normalized)")
     .eq("tenant_id", tenantId)
     .order("submitted_at", { ascending: false });
 
@@ -160,7 +164,28 @@ export async function fetchResponses(
 
   const { data, error } = await query.limit(2000);
   if (error) throw error;
-  return data as SurveyResponse[];
+
+  return (data as unknown as Array<Record<string, unknown>>).map((row) => {
+    const scores: Record<string, number | null> = {};
+    for (const a of (row.survey_answers as Array<{ question_code: string; value_normalized: number | null }>) ?? []) {
+      scores[a.question_code.toLowerCase()] = a.value_normalized;
+    }
+    const { survey_answers: _drop, ...rest } = row;
+    return {
+      ...rest,
+      scores,
+      fs_public_space: scores["fs_public_space"] ?? null,
+      fs_grievance: scores["fs_grievance"] ?? null,
+      fs_wellbeing_aware: scores["fs_wellbeing_aware"] ?? null,
+      ol_cost_manageable: scores["ol_cost_manageable"] ?? null,
+      ol_energy_know: scores["ol_energy_know"] ?? null,
+      ol_active_travel: scores["ol_active_travel"] ?? null,
+      ol_security: scores["ol_security"] ?? null,
+      ol_public_realm: scores["ol_public_realm"] ?? null,
+      ol_grievance: scores["ol_grievance"] ?? null,
+      ol_wellbeing_aware: scores["ol_wellbeing_aware"] ?? null,
+    } as unknown as SurveyResponse;
+  });
 }
 
 // =============================================================================

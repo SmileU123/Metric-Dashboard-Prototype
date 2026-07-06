@@ -206,6 +206,14 @@ for each active KPI definition (global + tenant):
 
 ## 5. Transformations (`kpi_sources.transformation`)
 
+> **Superseded by the mapping layer (0011):** raw→normalized conversion now
+> lives in `survey_value_maps` (per-question scale/categorical/boolean/multi
+> rules, trigger-applied at ingest, batch re-derivable via
+> `apply_value_maps()`), and the engines read `survey_answers.value_normalized`
+> **dynamically by question code** — no hardcoded question lists. The
+> `transformation` column remains for backward compatibility; seeded sources
+> all use `passthrough`.
+
 | Value | Formula | Use |
 |---|---|---|
 | `passthrough` | `v` | 0–100 survey scores (Q4–Q9) |

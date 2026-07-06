@@ -105,6 +105,19 @@ derivations are all retained.
 Indexes on `(response_id)` and `(question_code)`. `v_survey_flat` exposes
 `value_normalized` as the impact columns; the raw ledger reads `value_raw`.
 
+### 3.3b `survey_value_maps` — mapping / normalization layer (0011)
+
+Raw → numeric/normalized conversion is **data**, one rule row per question:
+`scale_linear` (min/max → 0–100), `categorical`/`boolean` (per-option
+`value_numeric` + `value_normalized`), and `multi` (piped values split and
+averaged). A trigger normalizes every inserted/updated answer automatically;
+`apply_value_maps()` re-derives all history after a rule is retuned. The KPI
+engines read `survey_answers.value_normalized` **dynamically by question code**
+(no hardcoded question lists), so evolving questions/KPIs require no schema
+changes. Open-text answers stay unmapped (sentiment covers them); nominal
+scorings (proximity, occupancy, offering chips) are seeded as clearly-marked
+provisional defaults.
+
 ## 4. Question mapping (from the mock workbook)
 
 **Field Survey** → `channel = field`

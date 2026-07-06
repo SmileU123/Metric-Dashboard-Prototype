@@ -75,6 +75,11 @@ export interface SurveyResponse {
   // Legacy placeholder input (retired — Housing Affordability now survey-backed)
   housing_cost_to_income: number | null;
 
+  // Dynamic normalized scores by lowercased question code (from survey_answers
+  // via the mapping layer). Lets the KPI engine reference ANY catalogued
+  // question without schema/type changes.
+  scores?: Record<string, number | null>;
+
   // Open text (Field Q7 / Online Q10) + sentiment
   q10_text: string;
   q10_sentiment: Sentiment;

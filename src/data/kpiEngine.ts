@@ -1,8 +1,13 @@
 // In-app KPI ENGINE — the TypeScript mirror of recompute_kpis() in
 // supabase/migrations/0005_kpi_engine.sql.
 //
-//   survey rows → sources (weight + transformation) → formula (per calculation_type)
+//   survey rows → sources (weight) → formula (per calculation_type)
 //   → normalization clamp → thresholds → KPI_Result (+ a KPI_RunLog for audit)
+//
+// Values are read DYNAMICALLY from each response's `scores` map (question code →
+// normalized 0-100, produced by the mapping layer / survey_value_maps), with a
+// fallback to the typed impact columns. A brand-new question + KPI is therefore
+// pure data — no schema or code changes here.
 //
 // Running it in the browser keeps Page 1 interactive under the Q1–Q3 filters
 // (the DB function is the Phase-3 scheduled/batch path that writes KPI_Result).
@@ -16,26 +21,22 @@ import type {
   KpiRunLog,
   KpiSource,
   KpiThreshold,
-  KpiTransformation,
   SurveyResponse,
 } from "./types";
 
 const clamp = (v: number, lo: number, hi: number) =>
   Math.max(lo, Math.min(hi, v));
 
-function transform(v: number, t: KpiTransformation): number {
-  switch (t) {
-    case "normalize_1_5_to_0_100":
-      return ((v - 1) / 4) * 100;
-    case "invert_cost_to_income":
-      return clamp(100 - (v - 25) * 3, 0, 100);
-    case "passthrough":
-    default:
-      return v;
-  }
+// Dynamic source read: scores map first (any catalogued question), typed
+// column fallback. Returns null when the response didn't answer the question.
+function srcVal(r: SurveyResponse, key: string): number | null {
+  const fromScores = r.scores?.[key.toLowerCase()];
+  const v = fromScores ?? (r as unknown as Record<string, unknown>)[key];
+  const n = Number(v);
+  return v != null && Number.isFinite(n) ? n : null;
 }
 
-// Per-source transformed mean across the given rows.
+// Per-source mean (of normalized values) across the given rows.
 function sourceMeans(
   sources: KpiSource[],
   rows: SurveyResponse[]
@@ -44,12 +45,12 @@ function sourceMeans(
   for (const s of sources) {
     if (!s.is_active) continue;
     const nums = rows
-      .map((r) => Number((r as unknown as Record<string, unknown>)[s.source_key]))
-      .filter((n) => Number.isFinite(n));
+      .map((r) => srcVal(r, s.source_key))
+      .filter((n): n is number => n !== null);
     if (nums.length === 0) continue;
     out.push({
       weight: s.weight,
-      mean: nums.reduce((a, n) => a + transform(n, s.transformation), 0) / nums.length,
+      mean: nums.reduce((a, n) => a + n, 0) / nums.length,
     });
   }
   return out;
@@ -65,10 +66,10 @@ function tenureSplitMean(
   const groups = new Map<string, number[]>();
   for (const r of rows) {
     if (!r.tenure) continue;
-    const v = Number((r as unknown as Record<string, unknown>)[source.source_key]);
-    if (!Number.isFinite(v)) continue;
+    const v = srcVal(r, source.source_key);
+    if (v === null) continue;
     const g = groups.get(r.tenure) ?? [];
-    g.push(transform(v, source.transformation));
+    g.push(v);
     groups.set(r.tenure, g);
   }
   if (groups.size === 0) return null;

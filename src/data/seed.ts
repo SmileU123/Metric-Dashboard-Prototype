@@ -253,7 +253,14 @@ function buildResponses(): SurveyResponse[] {
   return rows;
 }
 
-export const SEED_RESPONSES: SurveyResponse[] = buildResponses();
+export const SEED_RESPONSES: SurveyResponse[] = buildResponses().map((r) => ({
+  ...r,
+  // Dynamic scores map (mirrors the live mapping layer) so the KPI engine's
+  // question-code reads work identically offline.
+  scores: Object.fromEntries(
+    ALL_IMPACT_COLUMNS.filter((c) => r[c] != null).map((c) => [c, Number(r[c])])
+  ),
+}));
 
 // Question catalog (mirrors 0004 seed) — drives the Raw Data page columns.
 export const SEED_QUESTIONS: SurveyQuestion[] = [
