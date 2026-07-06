@@ -201,5 +201,4 @@ create policy demo_anon_kpi_ts on public.kpi_timeseries
   for select to anon using (true);
 
 -- Materialize history for the demo tenants.
-select public.recompute_kpi_timeseries('northgate', 6);
-select public.recompute_kpi_timeseries('meridian', 6);
+select public.recompute_kpi_timeseries('cln-0010', 6);

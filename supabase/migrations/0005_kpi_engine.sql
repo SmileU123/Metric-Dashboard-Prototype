@@ -351,5 +351,4 @@ select id, 'score_range', g, a, 0 from (values
 join public.kpi_definition d on d.kpi_code = v.code and d.tenant_id is null;
 
 -- Materialize an initial period snapshot + run log for each tenant.
-select public.recompute_kpis('northgate', null, '2026-Q2');
-select public.recompute_kpis('meridian',  null, '2026-Q2');
+select public.recompute_kpis('cln-0010', null, '2026-Q3');
