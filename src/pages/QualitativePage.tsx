@@ -59,7 +59,6 @@ export function QualitativePage() {
   );
 
   const themes = useMemo(() => extractThemes(cohort, 8), [cohort]);
-  const maxCount = themes[0]?.count ?? 1;
 
   // Ledger = cohort narrowed by the free-text search and the active theme.
   const filtered = useMemo(() => {
@@ -117,11 +116,14 @@ export function QualitativePage() {
                   <span className="w-52 shrink-0 truncate text-sm font-semibold text-ink">
                     {th.label}
                   </span>
+                  {/* Gauge = the dominant sentiment's share of this theme's
+                      mentions (50% negative → half-filled red bar), matching
+                      the "% sentiment" figure on the right. */}
                   <span className="relative h-2.5 flex-1 overflow-hidden rounded-full bg-line/60">
                     <span
                       className="absolute inset-y-0 left-0 rounded-full"
                       style={{
-                        width: `${(th.count / maxCount) * 100}%`,
+                        width: `${th.pct}%`,
                         backgroundColor: `rgb(var(--state-${state}))`,
                       }}
                     />
