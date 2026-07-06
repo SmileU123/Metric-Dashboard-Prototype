@@ -97,9 +97,9 @@ export function QualitativePage() {
         <Card className="mb-4 p-5">
           <div className="flex items-baseline justify-between">
             <p className="text-sm font-medium text-muted">
-              Recurring themes in open feedback
+              Feedback Themes
             </p>
-            <p className="text-xs text-muted">click a theme to filter the ledger</p>
+            <p className="text-xs text-muted">Click theme to filter...</p>
           </div>
           <div className="mt-4 space-y-2">
             {themes.map((th) => {

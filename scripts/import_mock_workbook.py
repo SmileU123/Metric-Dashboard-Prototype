@@ -34,12 +34,34 @@ POS = ["great","love","happy","improved","brilliant","fantastic","good","thank",
        "brightened","amazing","excellent","appreciate","keen","enjoy",
        "wonderful","pleased","impress"]
 
-# Hand overrides where the lexicon misreads a constructive suggestion.
+# Hand overrides where the lexicon misreads a text (demo-balanced tagging:
+# community-supportive suggestions read positive; retrospective complaints
+# read negative). Keep in sync with supabase/_patch_sentiment.sql.
 OVERRIDES = {
-    "Can we get weekly text or email updates": "neutral",
     "Please add a community repair workshop": "neutral",
     "Could you install a pet-wash station": "positive",
-    "An 8-storey building needs dedicated kid": "neutral",
+    # neutral -> positive
+    "Please partner with the local bakery": "positive",
+    "Can the development host a monthly": "positive",
+    "communal lounge host free wellbeing": "positive",
+    "share regular updates on local businesses": "positive",
+    "lease add motion-sensor LED lighting": "positive",
+    "A communal rooftop garden with BBQ": "positive",
+    "adding a small, fenced dog run": "positive",
+    "An 8-storey building needs dedicated kid": "positive",
+    "Planting mature, dense canopy trees": "positive",
+    "Instead of a generic concrete plaza": "positive",
+    "More construciton site jobs please": "positive",
+    "Will the new building include public amenities": "positive",
+    "Please prioritize hiring local subcontractors": "positive",
+    "Can we get weekly text or email updates": "positive",
+    # neutral -> negative
+    "Please respect the agreed-upon working hours": "negative",
+    "Can you provide a clear timeline": "negative",
+    "We need a clear, public point of contact": "negative",
+    "Development should have included dedicated": "negative",
+    "Acoustic insulation between the gym": "negative",
+    "installing a third high-speed service elevator": "negative",
 }
 
 def sentiment(text):
