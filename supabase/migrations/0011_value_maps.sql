@@ -42,8 +42,11 @@ create policy value_maps_read on public.survey_value_maps
 -- Resolver: (question_code, value_raw) -> (found, value_numeric, value_normalized)
 -- multi: value_raw may hold several options split by '|'; results are averaged.
 -- -----------------------------------------------------------------------------
+-- NOTE: the result column is named `matched` (NOT `found`) deliberately —
+-- `FOUND` is PL/pgSQL's automatic status variable and shadows a same-named
+-- output column, silently swallowing assignments.
 create or replace function public.map_answer_values(p_code text, p_raw text)
-returns table (found boolean, v_numeric numeric, v_normalized numeric)
+returns table (matched boolean, v_numeric numeric, v_normalized numeric)
 language plpgsql
 stable
 as $$
@@ -55,7 +58,7 @@ declare
   hits   integer := 0;
   part   text;
 begin
-  found := false; v_numeric := null; v_normalized := null;
+  matched := false; v_numeric := null; v_normalized := null;
 
   if p_raw is null then return next; return; end if;
 
@@ -66,7 +69,7 @@ begin
   if m.id is not null then
     if p_raw ~ '^-?\d+(\.\d+)?$' then
       n := p_raw::numeric;
-      found := true;
+      matched := true;
       v_numeric := n;
       if m.scale_max is not null and m.scale_min is not null and m.scale_max <> m.scale_min then
         v_normalized := greatest(0, least(100, (n - m.scale_min) / (m.scale_max - m.scale_min) * 100));
@@ -90,7 +93,7 @@ begin
       end if;
     end loop;
     if hits > 0 then
-      found := true;
+      matched := true;
       v_numeric := round(agg_n / hits, 2);
       v_normalized := round(agg_z / hits, 2);
     end if;
@@ -103,7 +106,7 @@ begin
     and lower(match_value) = lower(trim(p_raw))
   limit 1;
   if m.id is not null then
-    found := true;
+    matched := true;
     v_numeric := m.value_numeric;
     v_normalized := m.value_normalized;
   end if;
@@ -121,7 +124,7 @@ as $$
 declare m record;
 begin
   select * into m from public.map_answer_values(new.question_code, new.value_raw);
-  if m.found then
+  if m.matched then
     new.value_numeric := m.v_numeric;
     new.value_normalized := m.v_normalized;
   end if;
@@ -140,17 +143,21 @@ create or replace function public.apply_value_maps()
 returns integer
 language plpgsql
 as $$
-declare n integer;
+declare
+  rec record;
+  m   record;
+  n   integer := 0;
 begin
-  update public.survey_answers a
-  set value_numeric = m.v_numeric,
-      value_normalized = m.v_normalized
-  from (
-    select id, (public.map_answer_values(question_code, value_raw)).*
-    from public.survey_answers
-  ) m
-  where m.id = a.id and m.found;
-  get diagnostics n = row_count;
+  for rec in select id, question_code, value_raw from public.survey_answers loop
+    select * into m from public.map_answer_values(rec.question_code, rec.value_raw);
+    if m.matched then
+      update public.survey_answers
+      set value_numeric = m.v_numeric,
+          value_normalized = m.v_normalized
+      where id = rec.id;
+      n := n + 1;
+    end if;
+  end loop;
   return n;
 end $$;
 
