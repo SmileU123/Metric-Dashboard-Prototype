@@ -18,14 +18,29 @@ import {
 import type { KpiViz } from "@/config/defensiveDesign";
 import type { MetricView } from "@/data/types";
 
+// Quarter-over-quarter movement. Compares the latest quarter WITH data against
+// the previous quarter WITH data — empty quarters (value 0 = no responses) are
+// never used as a baseline, so a single-quarter dataset reads honestly as
+// "first tracked quarter" instead of a bogus "▲ 54.2 vs Q4".
 function TrendDelta({ m }: { m: MetricView }) {
-  const first = m.trend[0]?.value ?? 0;
-  const last = m.trend[m.trend.length - 1]?.value ?? 0;
-  const delta = last - first;
+  const withData = m.trend.filter((t) => t.value > 0);
+  if (withData.length === 0) return null;
+  const current = withData[withData.length - 1];
+  const prev = withData.length >= 2 ? withData[withData.length - 2] : null;
+
+  if (!prev)
+    return (
+      <span className="text-xs text-muted">
+        {current.label} · first tracked quarter
+      </span>
+    );
+
+  const delta = current.value - prev.value;
   if (Math.abs(delta) < 0.05)
-    return <span className="text-xs text-muted">no change</span>;
-  const improving =
-    m.direction === "lower_better" ? delta < 0 : delta > 0;
+    return (
+      <span className="text-xs text-muted">no change vs {prev.label}</span>
+    );
+  const improving = m.direction === "lower_better" ? delta < 0 : delta > 0;
   const arrow = delta > 0 ? "▲" : "▼";
   return (
     <span
@@ -33,7 +48,7 @@ function TrendDelta({ m }: { m: MetricView }) {
       style={{ color: `rgb(var(--state-${improving ? "green" : "red"}))` }}
     >
       {arrow} {Math.abs(Math.round(delta * 10) / 10)}
-      {m.unit === "%" ? "%" : ""} vs {m.trend[0]?.label}
+      {m.unit === "%" ? "%" : ""} vs {prev.label}
     </span>
   );
 }

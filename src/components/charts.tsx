@@ -11,6 +11,9 @@ const stateColor = (s: ComplianceState) => `rgb(var(--state-${s}))`;
 const TRACK = "rgb(var(--line))";
 const clampFrac = (v: number, max: number) =>
   Math.max(0, Math.min(1, max > 0 ? v / max : 0));
+// One-decimal display — identical rounding to the card's formatted value, so
+// the number inside a dial always matches the number beside it.
+const fmt1 = (v: number) => String(Math.round(v * 10) / 10);
 
 // 0 = top, angle increases clockwise (SVG y-down).
 function pt(cx: number, cy: number, r: number, angleDeg: number) {
@@ -67,9 +70,9 @@ export function Ring({
         y={c - 2}
         textAnchor="middle"
         className="fill-ink"
-        style={{ fontSize: size * 0.24, fontWeight: 700 }}
+        style={{ fontSize: size * 0.2, fontWeight: 700 }}
       >
-        {Math.round(value)}
+        {fmt1(value)}
       </text>
       {label && (
         <text
@@ -124,9 +127,9 @@ export function Gauge({
         y={cy - 4}
         textAnchor="middle"
         className="fill-ink"
-        style={{ fontSize: width * 0.17, fontWeight: 700 }}
+        style={{ fontSize: width * 0.15, fontWeight: 700 }}
       >
-        {Math.round(value)}
+        {fmt1(value)}
       </text>
     </svg>
   );
