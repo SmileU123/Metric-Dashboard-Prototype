@@ -187,13 +187,6 @@ insert into public.survey_value_maps (question_code, map_type, match_value, valu
   ('FS_WELLBEING_AWARE','categorical','YES_NEG',1,50,'aware, negative'),
   ('FS_WELLBEING_AWARE','categorical','NO_NEG',0,0,'unaware');
 
--- Proximity: engagement-intensity scoring (provisional).
-insert into public.survey_value_maps (question_code, map_type, match_value, value_numeric, value_normalized, notes) values
-  ('FS_PROXIMITY','categorical','DCW',4,100,'daily commuter/worker'),
-  ('FS_PROXIMITY','categorical','LR',3,75,'local resident'),
-  ('FS_PROXIMITY','categorical','Occ_Ten',2,50,'occasional tenant'),
-  ('FS_PROXIMITY','categorical','FTV_Passerby',1,25,'first-time visitor / passerby');
-
 -- Accessibility cohort: normalized = "standard access" share (0 = no constraints).
 insert into public.survey_value_maps (question_code, map_type, match_value, value_numeric, value_normalized, notes) values
   ('FS_ACCESS_COHORT','categorical','0',0,100,'standard access'),
@@ -202,33 +195,13 @@ insert into public.survey_value_maps (question_code, map_type, match_value, valu
   ('FS_ACCESS_COHORT','categorical','3',3,0,'access constraint reported'),
   ('FS_ACCESS_COHORT','categorical','4',4,0,'access constraint reported');
 
--- Occupancy: residency-intensity scoring (provisional).
-insert into public.survey_value_maps (question_code, map_type, match_value, value_numeric, value_normalized, notes) values
-  ('OL_OCCUPANCY','categorical','Full-time Resident',3,100,''),
-  ('OL_OCCUPANCY','categorical','Part-time/Commuter',2,67,''),
-  ('OL_OCCUPANCY','categorical','Local Business Employee',1,33,''),
-  ('OL_OCCUPANCY','categorical','Visitor/Community Member',0,0,'');
-
--- Offering chips: NOMINAL preferences. numeric = option code; normalized is a
--- mechanical spread (placeholder) — retune before any KPI references these.
-insert into public.survey_value_maps (question_code, map_type, match_value, value_numeric, value_normalized, notes) values
-  ('FS_OFFERING','categorical','HEALTH_Fit',1,0,'nominal placeholder'),
-  ('FS_OFFERING','categorical','Green_Pock',2,20,'nominal placeholder'),
-  ('FS_OFFERING','categorical','YPPL_Activity',3,40,'nominal placeholder'),
-  ('FS_OFFERING','categorical','MWL_Events',4,60,'nominal placeholder'),
-  ('FS_OFFERING','categorical','NEG_Need',5,80,'nominal placeholder'),
-  ('FS_OFFERING','categorical','STREET_Safe',6,100,'nominal placeholder');
-
-insert into public.survey_value_maps (question_code, map_type, match_value, value_numeric, value_normalized, notes)
-select q, 'multi', v, n, z, 'nominal placeholder; multi supports piped values (A | B)'
-from (values
-  ('Expanded Green Space / Shading',1,0),
-  ('Community Workshops & Social Events',2,25),
-  ('Secure Bicycle & EV Infrastructure',3,50),
-  ('Improved Lighting & Public Safety Measures',4,75),
-  ('Local Business/Independent Retail Pop-ups',5,100)
-) as o(v,n,z)
-cross join (values ('OL_OFFERING_1'),('OL_OFFERING_2')) as c(q);
+-- INTENTIONALLY UNMAPPED (client decision 2026-07-07): purely nominal
+-- dimensions stay raw-only — a numeric/normalized value would be meaningless
+-- and invite accidental averaging. Add rules here if a KPI ever needs them.
+--   FS_PROXIMITY   (DCW / LR / Occ_Ten / FTV_Passerby)
+--   OL_OCCUPANCY   (Full-time Resident / Part-time/Commuter / ...)
+--   FS_OFFERING    (Q6-B chips)
+--   OL_OFFERING_1 / OL_OFFERING_2 (top-2 preference picks)
 
 -- Backfill every existing answer through the mapping layer.
 select public.apply_value_maps();

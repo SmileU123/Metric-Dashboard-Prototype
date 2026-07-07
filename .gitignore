@@ -26,3 +26,4 @@ supabase/_run_in_sql_editor.sql
 ~$*
 supabase/_patch_value_maps.sql
 supabase/_patch_sentiment.sql
+supabase/_patch_nominal_maps.sql
