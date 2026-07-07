@@ -253,12 +253,52 @@ function buildResponses(): SurveyResponse[] {
   return rows;
 }
 
-export const SEED_RESPONSES: SurveyResponse[] = buildResponses().map((r) => ({
+const BASE_RESPONSES = buildResponses();
+
+// Deterministic categorical captures (proximity, offering chips, cohort id, age)
+// generated ONCE per response and shared by the deep-dive `raws` map and the
+// Raw Data page, so both views agree.
+const catRand = mulberry32(4242);
+const cpick = <T>(a: T[]) => a[Math.floor(catRand() * a.length)];
+const PROX = ["DCW", "LR", "Occ_Ten", "FTV_Passerby"];
+const OFFER = [
+  "Expanded Green Space / Shading",
+  "Community Workshops & Social Events",
+  "Secure Bicycle & EV Infrastructure",
+  "Improved Lighting & Public Safety Measures",
+  "Local Business/Independent Retail Pop-ups",
+];
+// Field Q6-B desired-offering chip codes (mirror the live capture codes).
+const FIELD_OFFER = ["HEALTH_Fit", "Green_Pock", "STREET_Safe", "YPPL_Activity", "MWL_Events", "NEG_Need"];
+
+const SEED_CATEGORICALS = new Map<string, RawAnswer[]>();
+for (const r of BASE_RESPONSES) {
+  const cat: RawAnswer[] = [];
+  if (r.channel === "field") {
+    const age = 18 + Math.floor(catRand() * 57);
+    cat.push({ question_code: "FS_AGE", value_raw: String(age), value_raw_type: "numeric", value_numeric: age, value_normalized: null });
+    cat.push({ question_code: "FS_ACCESS_COHORT", value_raw: String(Math.floor(catRand() * 5)), value_raw_type: "categorical", value_numeric: null, value_normalized: null });
+    cat.push({ question_code: "FS_PROXIMITY", value_raw: cpick(PROX), value_raw_type: "categorical", value_numeric: null, value_normalized: null });
+    // Q6-B is captured for ~70% of intercepts (verbatim chip, no numeric map).
+    if (catRand() < 0.7)
+      cat.push({ question_code: "FS_OFFERING", value_raw: cpick(FIELD_OFFER), value_raw_type: "categorical", value_numeric: null, value_normalized: null });
+  } else {
+    cat.push({ question_code: "OL_OFFERING_1", value_raw: cpick(OFFER), value_raw_type: "multi", value_numeric: null, value_normalized: null });
+    cat.push({ question_code: "OL_OFFERING_2", value_raw: cpick(OFFER), value_raw_type: "multi", value_numeric: null, value_normalized: null });
+  }
+  SEED_CATEGORICALS.set(r.id, cat);
+}
+
+export const SEED_RESPONSES: SurveyResponse[] = BASE_RESPONSES.map((r) => ({
   ...r,
   // Dynamic scores map (mirrors the live mapping layer) so the KPI engine's
   // question-code reads work identically offline.
   scores: Object.fromEntries(
     ALL_IMPACT_COLUMNS.filter((c) => r[c] != null).map((c) => [c, Number(r[c])])
+  ),
+  // Verbatim categorical captures by lowercased code (for the deep-dive tables).
+  raws: Object.fromEntries(
+    (SEED_CATEGORICALS.get(r.id) ?? []).map((a) => [a.question_code.toLowerCase(), a.value_raw])
   ),
 }));
 
@@ -289,16 +329,6 @@ export const SEED_QUESTIONS: SurveyQuestion[] = [
 // synthesize the categorical answers so the Raw Data page works without a
 // backend. Live mode reads the true stored value_raw from survey_answers.
 const rawScale = (norm: number) => Math.round(norm / 25) + 1; // 0→1 … 100→5
-const rrand = mulberry32(4242);
-const rpick = <T>(a: T[]) => a[Math.floor(rrand() * a.length)];
-const PROX = ["DCW", "LR", "Occ_Ten", "FTV_Passerby"];
-const OFFER = [
-  "Expanded Green Space / Shading",
-  "Community Workshops & Social Events",
-  "Secure Bicycle & EV Infrastructure",
-  "Improved Lighting & Public Safety Measures",
-  "Local Business/Independent Retail Pop-ups",
-];
 
 // Text answers for the multi-stream Page-4 ledger (seed mode has only the main
 // open-text stream per response; live mode also carries Q3B follow-ups).
@@ -324,16 +354,7 @@ export const SEED_RAW_RESPONSES: RawResponse[] = SEED_RESPONSES.map((r) => {
     const scale = rawScale(norm);
     return { question_code: c.toUpperCase(), value_raw: String(scale), value_raw_type: "numeric", value_numeric: scale, value_normalized: norm };
   });
-  const cat: RawAnswer[] = [];
-  if (r.channel === "field") {
-    const age = 18 + Math.floor(rrand() * 57);
-    cat.push({ question_code: "FS_AGE", value_raw: String(age), value_raw_type: "numeric", value_numeric: age, value_normalized: null });
-    cat.push({ question_code: "FS_ACCESS_COHORT", value_raw: String(Math.floor(rrand() * 4)), value_raw_type: "categorical", value_numeric: null, value_normalized: null });
-    cat.push({ question_code: "FS_PROXIMITY", value_raw: rpick(PROX), value_raw_type: "categorical", value_numeric: null, value_normalized: null });
-  } else {
-    cat.push({ question_code: "OL_OFFERING_1", value_raw: rpick(OFFER), value_raw_type: "multi", value_numeric: null, value_normalized: null });
-    cat.push({ question_code: "OL_OFFERING_2", value_raw: rpick(OFFER), value_raw_type: "multi", value_numeric: null, value_normalized: null });
-  }
+  const cat = SEED_CATEGORICALS.get(r.id) ?? [];
   return {
     id: r.id,
     tenant_id: r.tenant_id,

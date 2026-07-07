@@ -1,9 +1,10 @@
 // Category-Level Data Abstraction (Pages 2-4).
 //
-// Renders granular records with column headers labelled by BROAD THEMATIC
-// CATEGORY (e.g. "Spatial Transit Sentiment (Q4)") rather than the literal
-// survey question. Header text comes from the Defensive Design config, so survey
-// wording can change post-pitch without touching this table.
+// Renders granular records for one deep-dive cohort. Columns are driven by the
+// page config: verbatim categorical captures (proximity, offering chips, cohort
+// id) + thematic impact scores + qualitative sentiment. Question references are
+// F-/O- prefixed per channel; the redundant Asset Class column is dropped (the
+// cohort is already fixed by the page you're on).
 
 import { Card } from "./ui";
 import { ScoreBadge, SentimentTag } from "./ScoreBadge";
@@ -11,7 +12,9 @@ import {
   IMPACT_THEMES,
   impactHeader,
   impactValue,
-  type ImpactColumn,
+  prettyOffering,
+  rawValue,
+  type DeepDivePage,
 } from "@/config/defensiveDesign";
 import type { SurveyResponse } from "@/data/types";
 
@@ -23,17 +26,23 @@ function fmtDate(iso: string) {
   });
 }
 
+const formatRaw = (code: string, val: string) =>
+  code.toUpperCase().includes("OFFERING") ? prettyOffering(val) : val;
+
 export function CaptureFeedTable({
   rows,
-  columns,
+  page,
   limit = 40,
 }: {
   rows: SurveyResponse[];
-  columns: ImpactColumn[]; // which Q4-Q9 themes this screen surfaces
+  page: DeepDivePage;
   limit?: number;
 }) {
-  const themes = IMPACT_THEMES.filter((t) => columns.includes(t.column));
+  const themes = IMPACT_THEMES.filter((t) => page.columns.includes(t.column));
+  const rawCols = page.rawColumns ?? [];
+  const showTenure = page.showTenure ?? page.channel === "online";
   const shown = rows.slice(0, limit);
+  const colCount = 1 + (showTenure ? 1 : 0) + rawCols.length + themes.length + 1;
 
   return (
     <Card className="overflow-hidden">
@@ -42,14 +51,18 @@ export function CaptureFeedTable({
           <thead>
             <tr className="border-b border-line bg-canvas/60 text-left">
               <Th>Captured</Th>
-              <Th>Asset Class (Q2)</Th>
-              <Th>Tenure (Q3)</Th>
+              {showTenure && <Th>Tenure</Th>}
+              {rawCols.map((c) => (
+                <Th key={c.code} className="whitespace-nowrap">
+                  {c.header}
+                </Th>
+              ))}
               {themes.map((t) => (
                 <Th key={t.column} className="whitespace-nowrap">
                   {impactHeader(t)}
                 </Th>
               ))}
-              <Th>Sentiment (Q10)</Th>
+              <Th>Qualitative Feedback</Th>
             </tr>
           </thead>
           <tbody>
@@ -61,8 +74,19 @@ export function CaptureFeedTable({
                 <Td className="whitespace-nowrap text-muted">
                   {fmtDate(r.submitted_at)}
                 </Td>
-                <Td>{r.q2_asset_class}</Td>
-                <Td className="text-muted">{r.q3_tenure}</Td>
+                {showTenure && <Td className="text-muted">{r.q3_tenure}</Td>}
+                {rawCols.map((c) => {
+                  const val = rawValue(r, c.code);
+                  return (
+                    <Td key={c.code} className="whitespace-nowrap text-ink">
+                      {val ? (
+                        formatRaw(c.code, val)
+                      ) : (
+                        <span className="text-muted">—</span>
+                      )}
+                    </Td>
+                  );
+                })}
                 {themes.map((t) => (
                   <Td key={t.column}>
                     <ScoreBadge value={impactValue(r, t.column)} />
@@ -76,7 +100,7 @@ export function CaptureFeedTable({
             {shown.length === 0 && (
               <tr>
                 <td
-                  colSpan={themes.length + 4}
+                  colSpan={colCount}
                   className="p-8 text-center text-sm text-muted"
                 >
                   No records match the current filters.

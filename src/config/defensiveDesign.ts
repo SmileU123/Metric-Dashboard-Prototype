@@ -59,13 +59,36 @@ export const impactHeader = (t: ImpactTheme) => `${t.header} (${t.code})`;
 
 // ---- Pages 2-4: typology deep-dive screens ----------------------------------
 // Each screen filters to one respondent cohort and shows that channel's columns.
+
+// A verbatim categorical column rendered in the capture table (no numeric map):
+// proximity, offering chips, cohort identifiers.
+export interface RawColumn {
+  code: string; // survey_questions.code (matched case-insensitively against raws)
+  header: string; // includes the channel-prefixed reference, e.g. "(F-Q3)"
+}
+
+// The "What people want" slot — a reusable aggregation of a respondent's chosen
+// interventions / desired changes. Bound to question CODES, so the underlying
+// prompt can change without touching the component (client's explicit ask:
+// "the question may change, but we'll always use this slot").
+export interface WantSlot {
+  title: string;
+  note: string; // sub-label naming the source question(s)
+  codes: string[]; // one or more offering/intervention question codes to tally
+  topN?: number;
+}
+
 export interface DeepDivePage {
   slug: string;
   title: string;
   description: string;
+  channel: "field" | "online"; // drives the F-/O- question-reference prefix
   typology: RespondentTypology;
   delivery?: DeliveryModel; // narrows completed-building residents
   columns: ImpactColumn[];
+  rawColumns?: RawColumn[]; // verbatim categorical captures
+  showTenure?: boolean; // field intercepts have no tenure — hide the column
+  wantSlot?: WantSlot; // "this is what people want" aggregation panel
 }
 
 const FIELD_COLUMNS: ImpactColumn[] = [
@@ -88,26 +111,92 @@ export const DEEP_DIVE_PAGES: DeepDivePage[] = [
     slug: "construction",
     title: "Construction Sites",
     description: "Field intercepts adjacent to active construction sites.",
+    channel: "field",
     typology: "construction_adjacent",
     columns: FIELD_COLUMNS,
+    showTenure: false, // field intercepts carry no tenure
+    rawColumns: [
+      { code: "FS_ACCESS_COHORT", header: "Accessibility & Mobility Cohort (F-Q2)" },
+      { code: "FS_PROXIMITY", header: "Local Proximity (F-Q3)" },
+      { code: "FS_OFFERING", header: "Desired Offering (F-Q6B)" },
+    ],
+    wantSlot: {
+      title: "What people want",
+      note: "Desired on-site interventions — Field Q6B",
+      codes: ["FS_OFFERING"],
+    },
   },
   {
     slug: "build-to-rent",
     title: "Completed · Build to Rent",
     description: "Online/QR responses from completed Build-to-Rent buildings.",
+    channel: "online",
     typology: "resident_completed",
     delivery: "build_to_rent",
     columns: ONLINE_COLUMNS,
+    wantSlot: {
+      title: "What people want",
+      note: "Top two desired interventions — Online Q10A / Q10B",
+      codes: ["OL_OFFERING_1", "OL_OFFERING_2"],
+    },
   },
   {
     slug: "build-to-sell",
     title: "Completed · Build to Sell",
     description: "Online/QR responses from completed private-sale buildings.",
+    channel: "online",
     typology: "resident_completed",
     delivery: "build_to_sell",
     columns: ONLINE_COLUMNS,
+    wantSlot: {
+      title: "What people want",
+      note: "Top two desired interventions — Online Q10A / Q10B",
+      codes: ["OL_OFFERING_1", "OL_OFFERING_2"],
+    },
   },
 ];
+
+// Best-effort human labels for the field Q6-B chip codes (inferred from the
+// capture codes — adjust if the client confirms a different legend). Full-text
+// online offering values are already readable and pass through unchanged.
+const OFFERING_LABELS: Record<string, string> = {
+  HEALTH_Fit: "Health & Fitness Facilities",
+  Green_Pock: "Green Pocket Parks",
+  STREET_Safe: "Street Safety Improvements",
+  YPPL_Activity: "Young People's Activities",
+  MWL_Events: "Community / Meanwhile Events",
+  NEG_Need: "No Particular Need",
+};
+
+// Prettify a captured categorical value for display (verbatim-safe: unknown
+// codes just get underscores turned into spaces).
+export const prettyOffering = (raw: string): string =>
+  OFFERING_LABELS[raw] ?? raw.replace(/_/g, " ");
+
+// Read a verbatim categorical capture by question code (null when unanswered).
+export const rawValue = (r: SurveyResponse, code: string): string | null =>
+  r.raws?.[code.toLowerCase()] ?? null;
+
+// Tally the chosen interventions across a cohort for a WantSlot: returns
+// [{ label, count }] sorted desc. Any of the slot's codes contributes a vote.
+export function tallyWants(
+  rows: SurveyResponse[],
+  slot: WantSlot
+): { label: string; count: number }[] {
+  const counts = new Map<string, number>();
+  for (const r of rows) {
+    for (const code of slot.codes) {
+      const raw = rawValue(r, code);
+      if (!raw) continue;
+      const label = prettyOffering(raw);
+      counts.set(label, (counts.get(label) ?? 0) + 1);
+    }
+  }
+  return [...counts.entries()]
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, slot.topN ?? 6);
+}
 
 // Predicate: does a response belong to this deep-dive cohort?
 export const matchesCohort = (r: SurveyResponse, page: DeepDivePage): boolean =>

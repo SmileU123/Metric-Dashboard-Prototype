@@ -45,7 +45,7 @@ function CohortMix({ rows }: { rows: SurveyResponse[] }) {
   ];
   return (
     <Card className="p-5">
-      <p className="text-sm font-medium text-muted">Respondent cohort mix</p>
+      <p className="text-sm font-medium text-muted">Portfolio breakdown</p>
       <div className="mt-4 space-y-3">
         {bars.map((b) => (
           <div key={b.label} className="flex items-center gap-3">

@@ -175,7 +175,7 @@ export async function fetchResponses(
   // the UI tables read.
   let query = supabase
     .from("survey_responses")
-    .select("*, survey_answers(question_code, value_normalized)")
+    .select("*, survey_answers(question_code, value_normalized, value_raw)")
     .eq("tenant_id", tenantId)
     .order("submitted_at", { ascending: false });
 
@@ -192,13 +192,17 @@ export async function fetchResponses(
 
   return (data as unknown as Array<Record<string, unknown>>).map((row) => {
     const scores: Record<string, number | null> = {};
-    for (const a of (row.survey_answers as Array<{ question_code: string; value_normalized: number | null }>) ?? []) {
-      scores[a.question_code.toLowerCase()] = a.value_normalized;
+    const raws: Record<string, string | null> = {};
+    for (const a of (row.survey_answers as Array<{ question_code: string; value_normalized: number | null; value_raw: string | null }>) ?? []) {
+      const code = a.question_code.toLowerCase();
+      scores[code] = a.value_normalized;
+      raws[code] = a.value_raw;
     }
     const { survey_answers: _drop, ...rest } = row;
     return {
       ...rest,
       scores,
+      raws,
       fs_public_space: scores["fs_public_space"] ?? null,
       fs_grievance: scores["fs_grievance"] ?? null,
       fs_wellbeing_aware: scores["fs_wellbeing_aware"] ?? null,

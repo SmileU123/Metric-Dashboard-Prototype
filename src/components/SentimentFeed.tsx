@@ -35,7 +35,7 @@ export function SentimentSummary({ rows }: { rows: SurveyResponse[] }) {
     <Card className="p-5">
       <div className="flex items-baseline justify-between">
         <p className="text-sm font-medium text-muted">
-          Sentiment distribution (Q10)
+          Sentiment Distribution
         </p>
         <p className="text-xs text-muted">{rows.length.toLocaleString()} responses</p>
       </div>

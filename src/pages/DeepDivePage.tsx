@@ -8,6 +8,7 @@ import { useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { PageHeader, Card } from "@/components/ui";
 import { CaptureFeedTable } from "@/components/CaptureFeedTable";
+import { WhatPeopleWant } from "@/components/WhatPeopleWant";
 import { scoreState } from "@/components/ScoreBadge";
 import { Ring } from "@/components/charts";
 import { useApp } from "@/state/AppContext";
@@ -46,6 +47,14 @@ export function DeepDivePage() {
         subtitle={`${page.description} · ${cohort.length.toLocaleString()} records`}
       />
 
+      {/* "This is what people want" — desired interventions for this cohort.
+          Bound to question codes, so a changed prompt reuses the same slot. */}
+      {page.wantSlot && (
+        <div className="mb-6">
+          <WhatPeopleWant rows={cohort} slot={page.wantSlot} />
+        </div>
+      )}
+
       {/* Per-theme averages — abstracted headers, never literal question text. */}
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {themes.map((t) => {
@@ -62,7 +71,7 @@ export function DeepDivePage() {
         })}
       </div>
 
-      <CaptureFeedTable rows={cohort} columns={page.columns} />
+      <CaptureFeedTable rows={cohort} page={page} />
 
       <p className="mt-3 text-xs text-muted">
         Column headers are bound to broad thematic categories, decoupled from the

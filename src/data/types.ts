@@ -80,6 +80,11 @@ export interface SurveyResponse {
   // question without schema/type changes.
   scores?: Record<string, number | null>;
 
+  // Verbatim captured values by lowercased question code (value_raw). Lets
+  // screens surface categorical answers (proximity, offering chips, cohort
+  // identifiers) that have no numeric mapping — config, not schema.
+  raws?: Record<string, string | null>;
+
   // Open text (Field Q7 / Online Q10) + sentiment
   q10_text: string;
   q10_sentiment: Sentiment;

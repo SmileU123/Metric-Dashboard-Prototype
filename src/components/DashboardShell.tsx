@@ -65,12 +65,9 @@ export function DashboardShell({ children }: { children: ReactNode }) {
           <NavLink to="/raw" className={navItemClass}>
             Full Survey Data
           </NavLink>
-          <p className="px-3 pb-1 pt-4 text-[11px] font-semibold uppercase text-muted/70">
-            Configuration
-          </p>
-          <NavLink to="/engine" className={navItemClass}>
-            KPI Engine
-          </NavLink>
+          {/* KPI Engine / Configuration hidden for now (client request). The
+              /engine route still exists, so it can be re-exposed by restoring
+              this section — nothing was removed from the engine itself. */}
         </nav>
       </aside>
 
