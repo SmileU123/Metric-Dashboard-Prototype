@@ -65,11 +65,17 @@ export function RawDataPage() {
     };
   }, [tenant]);
 
-  // A column per catalogued question for this channel (open text shown separately).
+  // A column per catalogued question for this channel. The primary open-text
+  // answers (FS_OPEN / OL_OPEN) are shown via the envelope "Open Text" column;
+  // every OTHER question — including open-text follow-ups like Q3B — gets its
+  // own column.
+  const ENVELOPE_TEXT_CODES = ["FS_OPEN", "OL_OPEN"];
   const columns = useMemo(
     () =>
       questions
-        .filter((q) => q.channel === channel && q.response_type !== "open_text")
+        .filter(
+          (q) => q.channel === channel && !ENVELOPE_TEXT_CODES.includes(q.code)
+        )
         .sort((a, b) => a.seq - b.seq),
     [questions, channel]
   );
@@ -102,7 +108,7 @@ export function RawDataPage() {
     <div>
       <PageHeader
         title="Full Survey Data"
-        subtitle="Verbatim captured responses across every question — raw value, numeric, and normalized."
+        subtitle="Unified Database containing all raw, numeric, and normalized responses."
       />
 
       <div className="mb-3 flex flex-wrap items-center gap-3">
@@ -186,11 +192,23 @@ export function RawDataPage() {
                     {channel === "online" && (
                       <Td className="whitespace-nowrap text-muted">{r.q3_tenure}</Td>
                     )}
-                    {columns.map((q) => (
-                      <Td key={q.code} className="whitespace-nowrap text-center tabular-nums">
-                        {cellValue(m.get(q.code), mode)}
-                      </Td>
-                    ))}
+                    {columns.map((q) =>
+                      q.response_type === "open_text" ? (
+                        // Text answers (e.g. the Q3B cost follow-up) always show
+                        // their verbatim capture; numeric modes don't apply.
+                        <Td key={q.code} className="min-w-[16rem] max-w-sm text-ink">
+                          {m.get(q.code)?.value_raw ? (
+                            <>&ldquo;{m.get(q.code)!.value_raw}&rdquo;</>
+                          ) : (
+                            <span className="text-muted">—</span>
+                          )}
+                        </Td>
+                      ) : (
+                        <Td key={q.code} className="whitespace-nowrap text-center tabular-nums">
+                          {cellValue(m.get(q.code), mode)}
+                        </Td>
+                      )
+                    )}
                     <Td className="max-w-md text-ink">&ldquo;{r.q10_text}&rdquo;</Td>
                     <Td>
                       <SentimentTag sentiment={r.q10_sentiment} />

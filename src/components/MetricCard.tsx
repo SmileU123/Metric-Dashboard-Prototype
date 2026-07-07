@@ -31,14 +31,14 @@ function TrendDelta({ m }: { m: MetricView }) {
   if (!prev)
     return (
       <span className="text-xs text-muted">
-        {current.label} · first tracked quarter
+        {current.label} · First Tracked Quarter
       </span>
     );
 
   const delta = current.value - prev.value;
   if (Math.abs(delta) < 0.05)
     return (
-      <span className="text-xs text-muted">no change vs {prev.label}</span>
+      <span className="text-xs text-muted">No Change vs {prev.label}</span>
     );
   const improving = m.direction === "lower_better" ? delta < 0 : delta > 0;
   const arrow = delta > 0 ? "▲" : "▼";
