@@ -2,7 +2,7 @@
 // dashboard screens (+ Q10), and the persistent Q1-Q3 filter bar.
 
 import { NavLink } from "react-router-dom";
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { FilterBar } from "./FilterBar";
 import { useApp } from "@/state/AppContext";
 import { dataSource } from "@/data/repository";
@@ -17,6 +17,17 @@ const navItemClass = ({ isActive }: { isActive: boolean }) =>
 
 export function DashboardShell({ children }: { children: ReactNode }) {
   const { tenant, tenants, setTenantId } = useApp();
+
+  // Demo placeholder (investor-pitch trigger): the Export button is visually
+  // active but gated — clicking raises a governance toast instead of exporting.
+  const [toastVisible, setToastVisible] = useState(false);
+  const toastTimer = useRef<ReturnType<typeof setTimeout>>();
+  const showLockedToast = () => {
+    setToastVisible(true);
+    clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToastVisible(false), 3500);
+  };
+  useEffect(() => () => clearTimeout(toastTimer.current), []);
 
   return (
     <div className="flex min-h-screen">
@@ -84,11 +95,42 @@ export function DashboardShell({ children }: { children: ReactNode }) {
               </label>
               <DataSourceBadge />
             </div>
-            <FilterBar />
+            <div className="flex flex-wrap items-center gap-3">
+              <FilterBar />
+              {/* Global export — demo placeholder, gated until Phase 2 */}
+              <button
+                onClick={showLockedToast}
+                title="Download Report"
+                className="inline-flex h-9 items-center gap-1.5 rounded-md bg-brand px-3 text-sm font-medium text-brand-fg shadow-sm hover:opacity-90"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                Export PDF
+              </button>
+            </div>
           </div>
         </header>
 
         <main className="flex-1 px-6 py-6">{children}</main>
+      </div>
+
+      {/* Corner governance toast */}
+      <div
+        aria-live="polite"
+        className={cn(
+          "fixed bottom-5 right-5 z-50 transition-all duration-300",
+          toastVisible
+            ? "translate-y-0 opacity-100"
+            : "pointer-events-none translate-y-3 opacity-0"
+        )}
+      >
+        <div className="flex items-center gap-2.5 rounded-lg border border-line bg-ink px-4 py-3 text-sm font-medium text-surface shadow-lg">
+          <span aria-hidden>🔒</span>
+          Feature locked for Phase 2 Production Launch
+        </div>
       </div>
     </div>
   );
