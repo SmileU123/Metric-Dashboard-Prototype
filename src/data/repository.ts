@@ -18,6 +18,7 @@ import type {
   SurveyQuestion,
   SurveyResponse,
   Tenant,
+  TextAnswer,
 } from "./types";
 import {
   SEED_KPI_CONFIG,
@@ -25,9 +26,33 @@ import {
   SEED_RAW_RESPONSES,
   SEED_RESPONSES,
   SEED_TENANTS,
+  SEED_TEXT_ANSWERS,
 } from "./seed";
 
 export const dataSource = isSupabaseConfigured ? "supabase" : "seed";
+
+// Every qualitative text answer for the tenant (multi-stream Page-4 ledger):
+// FS_OPEN, OL_OPEN, OL_COST_FOLLOWUP and any future text question.
+export async function fetchTextAnswers(
+  tenantId: string
+): Promise<TextAnswer[]> {
+  if (!supabase) return SEED_TEXT_ANSWERS;
+  const { data, error } = await supabase
+    .from("survey_answers")
+    .select("response_id, question_code, value_raw, sentiment, survey_responses!inner(tenant_id)")
+    .eq("survey_responses.tenant_id", tenantId)
+    .eq("value_raw_type", "text")
+    .limit(5000);
+  if (error) throw error;
+  return (data as unknown as Array<{ response_id: string; question_code: string; value_raw: string | null; sentiment: TextAnswer["sentiment"] }>)
+    .filter((a) => a.value_raw)
+    .map((a) => ({
+      response_id: a.response_id,
+      question_code: a.question_code,
+      text: a.value_raw as string,
+      sentiment: a.sentiment,
+    }));
+}
 
 // Question catalog (survey_questions) — drives the Raw Data page columns.
 export async function fetchSurveyQuestions(): Promise<SurveyQuestion[]> {

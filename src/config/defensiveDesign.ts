@@ -163,6 +163,23 @@ export const QUALITATIVE = {
   maxLength: 280, // hard cap, per brief
 };
 
+// Multi-stream text intake: every qualitative text question feeding the
+// Qualitative Feedback ledger. Adding a stream = adding a row here (the data
+// layer picks up any value_raw_type='text' answer automatically).
+export interface TextStream {
+  code: string; // survey_questions.code
+  label: string; // shown in the ledger + Question Filter
+}
+
+export const TEXT_STREAMS: TextStream[] = [
+  { code: "FS_OPEN", label: "Field Q7 · Street-level remedies" },
+  { code: "OL_COST_FOLLOWUP", label: "Online Q3B · Cost & affordability" },
+  { code: "OL_OPEN", label: "Online Q10 · Estate improvements" },
+];
+
+export const textStreamLabel = (code: string) =>
+  TEXT_STREAMS.find((s) => s.code === code)?.label ?? code;
+
 // Helper: read an impact column (null when the channel didn't ask it).
 export const impactValue = (r: SurveyResponse, col: ImpactColumn): number =>
   Number(r[col] ?? 0);

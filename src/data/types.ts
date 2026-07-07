@@ -219,6 +219,14 @@ export interface RawResponse {
   answers: RawAnswer[];
 }
 
+// One qualitative text answer (multi-stream Page-4 ledger).
+export interface TextAnswer {
+  response_id: string;
+  question_code: string; // FS_OPEN | OL_COST_FOLLOWUP | OL_OPEN | ...
+  text: string;
+  sentiment: Sentiment | null;
+}
+
 // One stored monthly snapshot (KPI_Timeseries).
 export interface KpiTimeseriesPoint {
   kpi_id: string;

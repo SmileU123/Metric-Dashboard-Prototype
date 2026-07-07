@@ -300,6 +300,15 @@ const OFFER = [
   "Local Business/Independent Retail Pop-ups",
 ];
 
+// Text answers for the multi-stream Page-4 ledger (seed mode has only the main
+// open-text stream per response; live mode also carries Q3B follow-ups).
+export const SEED_TEXT_ANSWERS = SEED_RESPONSES.map((r) => ({
+  response_id: r.id,
+  question_code: r.channel === "field" ? "FS_OPEN" : "OL_OPEN",
+  text: r.q10_text,
+  sentiment: r.q10_sentiment,
+}));
+
 // Scored categoricals: derive the verbatim raw label back from the normalized value.
 const WELL_BY_NORM: Record<number, string> = { 100: "Yes_POS", 50: "YES_NEG", 0: "NO_NEG" };
 

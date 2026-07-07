@@ -1,20 +1,33 @@
-// Q10 / Page 4 — Qualitative open-feedback ledger.
+// Q10 / Page 4 — Qualitative Feedback: a MULTI-STREAM text intake ledger.
 //
-// Built for asset-manager investigation at volume (~350 responses across 6
-// sites + online): a high-level numeric sentiment summary, three controls above
-// the table (sentiment toggle, channel filter, text search), and a paginated
-// data table capped at 30 records per page.
+// One entry per qualitative text ANSWER (not per response), aggregating every
+// text stream — Field Q7 street-level remedies, Online Q3B cost & affordability
+// drivers, Online Q10 estate improvements — so no stream is a data blackout.
+// Controls: sentiment toggle, channel filter, QUESTION FILTER (isolate a
+// stream), text search, clickable theme clusters, 30/page pagination.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PageHeader, Card } from "@/components/ui";
 import { SentimentSummary } from "@/components/SentimentFeed";
 import { SentimentTag } from "@/components/ScoreBadge";
 import { useApp } from "@/state/AppContext";
+import { fetchTextAnswers } from "@/data/repository";
 import { extractThemes, responseMatchesTheme } from "@/config/textThemes";
+import { TEXT_STREAMS, textStreamLabel } from "@/config/defensiveDesign";
 import { cn } from "@/lib/cn";
-import type { ResponseSource, Sentiment, SurveyResponse } from "@/data/types";
+import type {
+  ResponseSource,
+  Sentiment,
+  SurveyResponse,
+  TextAnswer,
+} from "@/data/types";
 
 const PAGE_SIZE = 30;
+
+// A ledger entry: the parent response's envelope with the entry's own text and
+// sentiment substituted, so theme matching and the sentiment summary work
+// unchanged on entries.
+type QualEntry = SurveyResponse & { entry_key: string; entry_question: string };
 
 const CHANNEL_LABEL: Record<ResponseSource, string> = {
   field_pwa: "Field Intercept",
@@ -38,24 +51,62 @@ function fmtDate(iso: string) {
 }
 
 export function QualitativePage() {
-  const { responses } = useApp();
+  const { tenant, responses } = useApp();
 
+  const [textAnswers, setTextAnswers] = useState<TextAnswer[]>([]);
   const [sentiment, setSentiment] = useState<"all" | Sentiment>("all");
   const [channel, setChannel] = useState<"all" | ResponseSource>("all");
+  const [question, setQuestion] = useState<"all" | string>("all");
   const [search, setSearch] = useState("");
   const [theme, setTheme] = useState<string | null>(null);
   const [page, setPage] = useState(0);
 
-  // Cohort scope (sentiment + channel) — the theme chart summarises this set.
+  useEffect(() => {
+    if (!tenant) return;
+    let cancelled = false;
+    fetchTextAnswers(tenant.id)
+      .then((a) => !cancelled && setTextAnswers(a))
+      .catch(() => !cancelled && setTextAnswers([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [tenant]);
+
+  // Multi-stream entries: join text answers onto the (globally Q1–Q3-filtered)
+  // responses — one ledger entry per text answer.
+  const entries = useMemo<QualEntry[]>(() => {
+    const byResponse = new Map<string, TextAnswer[]>();
+    for (const a of textAnswers) {
+      const list = byResponse.get(a.response_id) ?? [];
+      list.push(a);
+      byResponse.set(a.response_id, list);
+    }
+    const out: QualEntry[] = [];
+    for (const r of responses) {
+      for (const a of byResponse.get(r.id) ?? []) {
+        out.push({
+          ...r,
+          q10_text: a.text,
+          q10_sentiment: a.sentiment ?? r.q10_sentiment,
+          entry_key: `${r.id}:${a.question_code}`,
+          entry_question: a.question_code,
+        });
+      }
+    }
+    return out;
+  }, [responses, textAnswers]);
+
+  // Cohort scope (sentiment + channel + question) — themes summarise this set.
   const cohort = useMemo(
     () =>
-      responses.filter(
-        (r) =>
-          r.q10_text &&
-          (sentiment === "all" || r.q10_sentiment === sentiment) &&
-          (channel === "all" || r.source === channel)
+      entries.filter(
+        (e) =>
+          e.q10_text &&
+          (sentiment === "all" || e.q10_sentiment === sentiment) &&
+          (channel === "all" || e.source === channel) &&
+          (question === "all" || e.entry_question === question)
       ),
-    [responses, sentiment, channel]
+    [entries, sentiment, channel, question]
   );
 
   const themes = useMemo(() => extractThemes(cohort, 8), [cohort]);
@@ -64,9 +115,9 @@ export function QualitativePage() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return cohort.filter(
-      (r) =>
-        (q === "" || r.q10_text.toLowerCase().includes(q)) &&
-        (!theme || responseMatchesTheme(r, theme))
+      (e) =>
+        (q === "" || e.q10_text.toLowerCase().includes(q)) &&
+        (!theme || responseMatchesTheme(e, theme))
     );
   }, [cohort, search, theme]);
 
@@ -84,7 +135,7 @@ export function QualitativePage() {
     <div>
       <PageHeader
         title="Qualitative Feedback"
-        subtitle="Open feedback (Q10) — hard-capped 280-character responses with backend sentiment tagging."
+        subtitle="Multi-stream text intake — Field Q7, Online Q3B and Online Q10, with backend sentiment tagging."
       />
 
       <div className="mb-6">
@@ -117,8 +168,7 @@ export function QualitativePage() {
                     {th.label}
                   </span>
                   {/* Gauge = the dominant sentiment's share of this theme's
-                      mentions (50% negative → half-filled red bar), matching
-                      the "% sentiment" figure on the right. */}
+                      mentions (50% negative → half-filled red bar). */}
                   <span className="relative h-2.5 flex-1 overflow-hidden rounded-full bg-line/60">
                     <span
                       className="absolute inset-y-0 left-0 rounded-full"
@@ -184,6 +234,23 @@ export function QualitativePage() {
           <option value="digital_public">Online</option>
         </select>
 
+        {/* Question filter — isolate a qualitative stream */}
+        <select
+          value={question}
+          onChange={(e) => {
+            setQuestion(e.target.value);
+            resetPage();
+          }}
+          className="h-9 rounded-md border border-line bg-surface px-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-brand/40"
+        >
+          <option value="all">All questions</option>
+          {TEXT_STREAMS.map((s) => (
+            <option key={s.code} value={s.code}>
+              {s.label}
+            </option>
+          ))}
+        </select>
+
         {/* Text search */}
         <input
           type="search"
@@ -217,38 +284,42 @@ export function QualitativePage() {
             <thead>
               <tr className="border-b border-line bg-canvas/60 text-left">
                 <Th>Sentiment</Th>
-                <Th>Open Feedback (Q10)</Th>
+                <Th>Feedback</Th>
+                <Th>Question</Th>
                 <Th>Channel</Th>
                 <Th>Cohort</Th>
                 <Th>Date</Th>
               </tr>
             </thead>
             <tbody>
-              {slice.map((r: SurveyResponse) => (
+              {slice.map((e) => (
                 <tr
-                  key={r.id}
+                  key={e.entry_key}
                   className="border-b border-line/60 align-top last:border-0 hover:bg-canvas/50"
                 >
                   <Td>
-                    <SentimentTag sentiment={r.q10_sentiment} />
+                    <SentimentTag sentiment={e.q10_sentiment} />
                   </Td>
                   <Td className="max-w-xl text-ink">
-                    &ldquo;{r.q10_text}&rdquo;
+                    &ldquo;{e.q10_text}&rdquo;
                   </Td>
                   <Td className="whitespace-nowrap text-muted">
-                    {CHANNEL_LABEL[r.source]}
+                    {textStreamLabel(e.entry_question)}
                   </Td>
                   <Td className="whitespace-nowrap text-muted">
-                    {r.q2_asset_class} · {r.q3_tenure}
+                    {CHANNEL_LABEL[e.source]}
                   </Td>
                   <Td className="whitespace-nowrap text-muted">
-                    {fmtDate(r.submitted_at)}
+                    {e.q2_asset_class} · {e.q3_tenure}
+                  </Td>
+                  <Td className="whitespace-nowrap text-muted">
+                    {fmtDate(e.submitted_at)}
                   </Td>
                 </tr>
               ))}
               {slice.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="p-8 text-center text-sm text-muted">
+                  <td colSpan={6} className="p-8 text-center text-sm text-muted">
                     No feedback matches the current filters.
                   </td>
                 </tr>
@@ -261,10 +332,12 @@ export function QualitativePage() {
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line px-4 py-2 text-xs text-muted">
           <span>
             {filtered.length === 0
-              ? "0 records"
+              ? "0 entries"
               : `Showing ${current * PAGE_SIZE + 1}–${
                   current * PAGE_SIZE + slice.length
-                } of ${filtered.length.toLocaleString()} records`}
+                } of ${filtered.length.toLocaleString()} entries across ${
+                  question === "all" ? TEXT_STREAMS.length : 1
+                } stream${question === "all" && TEXT_STREAMS.length > 1 ? "s" : ""}`}
           </span>
           <div className="flex items-center gap-2">
             <button
