@@ -133,11 +133,11 @@ export const DEEP_DIVE_PAGES: DeepDivePage[] = [
       { code: "FS_PROXIMITY", header: "Local Proximity (F-Q3)", place: "before" },
       { code: "FS_OFFERING", header: "Desired Offering (F-Q6B)", wide: true, place: "after" },
     ],
-    wantSlot: {
-      title: "What people want",
-      note: "Desired on-site interventions — Field Q6B",
-      codes: ["FS_OFFERING"],
-    },
+    // wantSlot: {
+    //   title: "What people want",
+    //   note: "Desired on-site interventions — Field Q6B",
+    //   codes: ["FS_OFFERING"],
+    // },
   },
   {
     slug: "build-to-rent",
@@ -148,11 +148,11 @@ export const DEEP_DIVE_PAGES: DeepDivePage[] = [
     delivery: "build_to_rent",
     columns: ONLINE_COLUMNS,
     rawColumns: ONLINE_RAW_COLUMNS,
-    wantSlot: {
-      title: "What people want",
-      note: "Top two desired interventions — Online Q10A / Q10B",
-      codes: ["OL_OFFERING_1", "OL_OFFERING_2"],
-    },
+    // wantSlot: {
+    //   title: "What people want",
+    //   note: "Top two desired interventions — Online Q10A / Q10B",
+    //   codes: ["OL_OFFERING_1", "OL_OFFERING_2"],
+    // },
   },
   {
     slug: "build-to-sell",
@@ -163,11 +163,11 @@ export const DEEP_DIVE_PAGES: DeepDivePage[] = [
     delivery: "build_to_sell",
     columns: ONLINE_COLUMNS,
     rawColumns: ONLINE_RAW_COLUMNS,
-    wantSlot: {
-      title: "What people want",
-      note: "Top two desired interventions — Online Q10A / Q10B",
-      codes: ["OL_OFFERING_1", "OL_OFFERING_2"],
-    },
+    // wantSlot: {
+    //   title: "What people want",
+    //   note: "Top two desired interventions — Online Q10A / Q10B",
+    //   codes: ["OL_OFFERING_1", "OL_OFFERING_2"],
+    // },
   },
 ];
 

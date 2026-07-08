@@ -4,7 +4,6 @@
 // chart. Reassigning a metric or its chart is a config change; this page doesn't.
 
 import { useMemo } from "react";
-import { Link } from "react-router-dom";
 import { PageHeader, Card } from "@/components/ui";
 import { MetricCard, MetricCardSkeleton } from "@/components/MetricCard";
 import { SentimentSummary } from "@/components/SentimentFeed";
@@ -128,9 +127,9 @@ export function OverviewPage() {
         {engine.runLog.input_records_count.toLocaleString()} records in{" "}
         {engine.runLog.execution_time_ms} ms ·{" "}
         {engine.runLog.calculation_version} · status {engine.runLog.status} ·{" "}
-        <Link to="/engine" className="text-brand hover:underline">
+        {/* <Link to="/engine" className="text-brand hover:underline">
           view engine config →
-        </Link>
+        </Link> */}
       </p>
     </div>
   );
