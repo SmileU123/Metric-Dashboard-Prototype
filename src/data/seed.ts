@@ -270,6 +270,13 @@ const OFFER = [
 ];
 // Field Q6-B desired-offering chip codes (mirror the live capture codes).
 const FIELD_OFFER = ["HEALTH_Fit", "Green_Pock", "STREET_Safe", "YPPL_Activity", "MWL_Events", "NEG_Need"];
+// Online Q3-B cost follow-up snippets (why costs feel unmanageable).
+const COST_FOLLOWUP = [
+  "Service charges doubled with zero breakdown of what we actually pay for.",
+  "Car parking rent went up with no notice; the running costs feel unsustainable.",
+  "Community energy network bills are uncapped and there's no choice of provider.",
+  "The mandatory amenity fee applies even though I never use the gym.",
+];
 
 const SEED_CATEGORICALS = new Map<string, RawAnswer[]>();
 for (const r of BASE_RESPONSES) {
@@ -277,7 +284,9 @@ for (const r of BASE_RESPONSES) {
   if (r.channel === "field") {
     const age = 18 + Math.floor(catRand() * 57);
     cat.push({ question_code: "FS_AGE", value_raw: String(age), value_raw_type: "numeric", value_numeric: age, value_normalized: null });
-    cat.push({ question_code: "FS_ACCESS_COHORT", value_raw: String(Math.floor(catRand() * 5)), value_raw_type: "categorical", value_numeric: null, value_normalized: null });
+    // Accessibility & Mobility cohort: raw identifier 0-4, mapped 0→100 else 0.
+    const accessId = Math.floor(catRand() * 5);
+    cat.push({ question_code: "FS_ACCESS_COHORT", value_raw: String(accessId), value_raw_type: "categorical", value_numeric: null, value_normalized: accessId === 0 ? 100 : 0 });
     cat.push({ question_code: "FS_PROXIMITY", value_raw: cpick(PROX), value_raw_type: "categorical", value_numeric: null, value_normalized: null });
     // Q6-B is captured for ~70% of intercepts (verbatim chip, no numeric map).
     if (catRand() < 0.7)
@@ -285,6 +294,9 @@ for (const r of BASE_RESPONSES) {
   } else {
     cat.push({ question_code: "OL_OFFERING_1", value_raw: cpick(OFFER), value_raw_type: "multi", value_numeric: null, value_normalized: null });
     cat.push({ question_code: "OL_OFFERING_2", value_raw: cpick(OFFER), value_raw_type: "multi", value_numeric: null, value_normalized: null });
+    // Q3-B cost follow-up: captured when the resident flags cost concerns.
+    if (r.q10_sentiment === "negative" || catRand() < 0.25)
+      cat.push({ question_code: "OL_COST_FOLLOWUP", value_raw: cpick(COST_FOLLOWUP), value_raw_type: "text", value_numeric: null, value_normalized: null });
   }
   SEED_CATEGORICALS.set(r.id, cat);
 }
@@ -292,10 +304,14 @@ for (const r of BASE_RESPONSES) {
 export const SEED_RESPONSES: SurveyResponse[] = BASE_RESPONSES.map((r) => ({
   ...r,
   // Dynamic scores map (mirrors the live mapping layer) so the KPI engine's
-  // question-code reads work identically offline.
-  scores: Object.fromEntries(
-    ALL_IMPACT_COLUMNS.filter((c) => r[c] != null).map((c) => [c, Number(r[c])])
-  ),
+  // question-code reads work identically offline. Includes mapped categoricals
+  // (e.g. the accessibility cohort score) alongside the impact columns.
+  scores: Object.fromEntries([
+    ...ALL_IMPACT_COLUMNS.filter((c) => r[c] != null).map((c) => [c, Number(r[c])]),
+    ...(SEED_CATEGORICALS.get(r.id) ?? [])
+      .filter((a) => a.value_normalized != null)
+      .map((a) => [a.question_code.toLowerCase(), a.value_normalized]),
+  ]),
   // Verbatim categorical captures by lowercased code (for the deep-dive tables).
   raws: Object.fromEntries(
     (SEED_CATEGORICALS.get(r.id) ?? []).map((a) => [a.question_code.toLowerCase(), a.value_raw])

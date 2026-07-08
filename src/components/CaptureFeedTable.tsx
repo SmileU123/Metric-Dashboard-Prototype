@@ -15,6 +15,7 @@ import {
   prettyOffering,
   rawValue,
   type DeepDivePage,
+  type RawColumn,
 } from "@/config/defensiveDesign";
 import type { SurveyResponse } from "@/data/types";
 
@@ -29,6 +30,36 @@ function fmtDate(iso: string) {
 const formatRaw = (code: string, val: string) =>
   code.toUpperCase().includes("OFFERING") ? prettyOffering(val) : val;
 
+// One verbatim/normalized capture cell (proximity, offering, cohort score, text).
+function RawCell({ col, r }: { col: RawColumn; r: SurveyResponse }) {
+  if (col.normalized) {
+    const score = r.scores?.[col.code.toLowerCase()];
+    return (
+      <Td>
+        {score == null ? (
+          <span className="text-muted">—</span>
+        ) : (
+          <ScoreBadge value={Number(score)} />
+        )}
+      </Td>
+    );
+  }
+  const val = rawValue(r, col.code);
+  const empty = <span className="text-muted">—</span>;
+  if (col.wide) {
+    return (
+      <Td className="min-w-[15rem] max-w-sm text-ink">
+        {val ? <>&ldquo;{formatRaw(col.code, val)}&rdquo;</> : empty}
+      </Td>
+    );
+  }
+  return (
+    <Td className="whitespace-nowrap text-ink">
+      {val ? formatRaw(col.code, val) : empty}
+    </Td>
+  );
+}
+
 export function CaptureFeedTable({
   rows,
   page,
@@ -40,6 +71,8 @@ export function CaptureFeedTable({
 }) {
   const themes = IMPACT_THEMES.filter((t) => page.columns.includes(t.column));
   const rawCols = page.rawColumns ?? [];
+  const beforeCols = rawCols.filter((c) => (c.place ?? "before") === "before");
+  const afterCols = rawCols.filter((c) => c.place === "after");
   const showTenure = page.showTenure ?? page.channel === "online";
   const shown = rows.slice(0, limit);
   const colCount = 1 + (showTenure ? 1 : 0) + rawCols.length + themes.length + 1;
@@ -52,7 +85,7 @@ export function CaptureFeedTable({
             <tr className="border-b border-line bg-canvas/60 text-left">
               <Th>Captured</Th>
               {showTenure && <Th>Tenure</Th>}
-              {rawCols.map((c) => (
+              {beforeCols.map((c) => (
                 <Th key={c.code} className="whitespace-nowrap">
                   {c.header}
                 </Th>
@@ -62,6 +95,11 @@ export function CaptureFeedTable({
                   {impactHeader(t)}
                 </Th>
               ))}
+              {afterCols.map((c) => (
+                <Th key={c.code} className="whitespace-nowrap">
+                  {c.header}
+                </Th>
+              ))}
               <Th>Qualitative Feedback</Th>
             </tr>
           </thead>
@@ -69,28 +107,22 @@ export function CaptureFeedTable({
             {shown.map((r) => (
               <tr
                 key={r.id}
-                className="border-b border-line/60 last:border-0 hover:bg-canvas/50"
+                className="border-b border-line/60 align-top last:border-0 hover:bg-canvas/50"
               >
                 <Td className="whitespace-nowrap text-muted">
                   {fmtDate(r.submitted_at)}
                 </Td>
                 {showTenure && <Td className="text-muted">{r.q3_tenure}</Td>}
-                {rawCols.map((c) => {
-                  const val = rawValue(r, c.code);
-                  return (
-                    <Td key={c.code} className="whitespace-nowrap text-ink">
-                      {val ? (
-                        formatRaw(c.code, val)
-                      ) : (
-                        <span className="text-muted">—</span>
-                      )}
-                    </Td>
-                  );
-                })}
+                {beforeCols.map((c) => (
+                  <RawCell key={c.code} col={c} r={r} />
+                ))}
                 {themes.map((t) => (
                   <Td key={t.column}>
                     <ScoreBadge value={impactValue(r, t.column)} />
                   </Td>
+                ))}
+                {afterCols.map((c) => (
+                  <RawCell key={c.code} col={c} r={r} />
                 ))}
                 <Td>
                   <SentimentTag sentiment={r.q10_sentiment} />

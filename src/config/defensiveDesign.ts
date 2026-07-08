@@ -60,11 +60,14 @@ export const impactHeader = (t: ImpactTheme) => `${t.header} (${t.code})`;
 // ---- Pages 2-4: typology deep-dive screens ----------------------------------
 // Each screen filters to one respondent cohort and shows that channel's columns.
 
-// A verbatim categorical column rendered in the capture table (no numeric map):
-// proximity, offering chips, cohort identifiers.
+// A verbatim categorical column rendered in the capture table (proximity,
+// offering chips, cohort identifiers, text follow-ups).
 export interface RawColumn {
   code: string; // survey_questions.code (matched case-insensitively against raws)
   header: string; // includes the channel-prefixed reference, e.g. "(F-Q3)"
+  normalized?: boolean; // render the 0-100 mapped score instead of the raw value
+  wide?: boolean; // long text/label — wrap instead of a single nowrap cell
+  place?: "before" | "after"; // sits before (default) or after the impact themes
 }
 
 // The "What people want" slot — a reusable aggregation of a respondent's chosen
@@ -106,6 +109,14 @@ const ONLINE_COLUMNS: ImpactColumn[] = [
   "ol_wellbeing_aware",
 ];
 
+// Verbatim online captures shown after the impact themes on the BTR/BTS pages:
+// the cost follow-up text (O-Q3B) and the top-two desired interventions.
+const ONLINE_RAW_COLUMNS: RawColumn[] = [
+  { code: "OL_COST_FOLLOWUP", header: "Cost Follow-up (O-Q3B)", wide: true, place: "after" },
+  { code: "OL_OFFERING_1", header: "Top Choice 1 (O-Q10A)", wide: true, place: "after" },
+  { code: "OL_OFFERING_2", header: "Top Choice 2 (O-Q10B)", wide: true, place: "after" },
+];
+
 export const DEEP_DIVE_PAGES: DeepDivePage[] = [
   {
     slug: "construction",
@@ -116,9 +127,11 @@ export const DEEP_DIVE_PAGES: DeepDivePage[] = [
     columns: FIELD_COLUMNS,
     showTenure: false, // field intercepts carry no tenure
     rawColumns: [
-      { code: "FS_ACCESS_COHORT", header: "Accessibility & Mobility Cohort (F-Q2)" },
-      { code: "FS_PROXIMITY", header: "Local Proximity (F-Q3)" },
-      { code: "FS_OFFERING", header: "Desired Offering (F-Q6B)" },
+      // F-Q2 shows the 0-100 mapped accessibility score; F-Q3 the verbatim
+      // proximity code. F-Q6B sits AFTER the impact themes, next to F-Q6.
+      { code: "FS_ACCESS_COHORT", header: "Accessibility & Mobility Cohort (F-Q2)", normalized: true, place: "before" },
+      { code: "FS_PROXIMITY", header: "Local Proximity (F-Q3)", place: "before" },
+      { code: "FS_OFFERING", header: "Desired Offering (F-Q6B)", wide: true, place: "after" },
     ],
     wantSlot: {
       title: "What people want",
@@ -134,6 +147,7 @@ export const DEEP_DIVE_PAGES: DeepDivePage[] = [
     typology: "resident_completed",
     delivery: "build_to_rent",
     columns: ONLINE_COLUMNS,
+    rawColumns: ONLINE_RAW_COLUMNS,
     wantSlot: {
       title: "What people want",
       note: "Top two desired interventions — Online Q10A / Q10B",
@@ -143,11 +157,12 @@ export const DEEP_DIVE_PAGES: DeepDivePage[] = [
   {
     slug: "build-to-sell",
     title: "Completed · Build to Sell",
-    description: "Online/QR responses from completed private-sale buildings.",
+    description: "Online/QR responses from completed Build-to-Sell buildings.",
     channel: "online",
     typology: "resident_completed",
     delivery: "build_to_sell",
     columns: ONLINE_COLUMNS,
+    rawColumns: ONLINE_RAW_COLUMNS,
     wantSlot: {
       title: "What people want",
       note: "Top two desired interventions — Online Q10A / Q10B",
