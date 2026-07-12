@@ -6,7 +6,7 @@ the three sheets exactly. Sentiment is heuristic-derived (workbook has none).
 """
 import openpyxl, uuid, re, sys
 
-WB = r"d:\Work\Projects\Upwork\Data Monitoring Platform (Base 44 Dashboard)\Resources\Mock Data_Field Survey - Online Survey_Update.xlsx"
+WB = r"d:\Work\Projects\Upwork\Data Monitoring Platform (Base 44 Dashboard)\Resources\Mock Data_Field Survey - Online Update_Rev 4.xlsx"
 OUT = r"C:\Users\GHOST\AppData\Local\Temp\claude\d--Work-Projects-Upwork-Data-Monitoring-Platform--Base-44-Dashboard-\ef16fa0d-1381-4c9d-8b1d-cc5eaca37ea8\scratchpad\literal_seed_fragment.sql"
 
 TENANT = "cln-0010"
@@ -89,6 +89,13 @@ def rid(tag):
 def norm15(v):
     return (float(v) - 1) / 4 * 100
 
+def numish(v):
+    """Int, or None for blanks / 'N/A' (Rev 4 has one N/A cost cell)."""
+    try:
+        return int(float(v))
+    except (TypeError, ValueError):
+        return None
+
 def ts(i):
     return f"2026-07-{1 + (i % 5):02d} {9 + (i % 8):02d}:{(i * 7) % 60:02d}:00+00"
 
@@ -166,13 +173,19 @@ for sheet, asset, tenure, deliv, tenure_label in ONLINE:
           f"'resident_completed','{deliv}','{cohort}',2026,3,timestamptz '{ts(i + 40)}',"
           f"'{agebr}','Completed','{tenure_label}',null,'{esc(text)}','{sen}',{sscore})")
         answers_rows.append(answer(respid, "OL_OCCUPANCY", occ, "categorical"))
-        answers_rows.append(answer(respid, "OL_COST_MANAGEABLE", int(q3), "numeric", vnum=int(q3), vnorm=norm15(q3)))
+        q3n = numish(q3)
+        if q3n is not None:
+            answers_rows.append(answer(respid, "OL_COST_MANAGEABLE", q3n, "numeric", vnum=q3n, vnorm=norm15(q3n)))
+        else:
+            answers_rows.append(answer(respid, "OL_COST_MANAGEABLE", clean(q3) or "N/A", "categorical"))
         if q3b:
             q3b = q3b[:280]
             answers_rows.append(answer(respid, "OL_COST_FOLLOWUP", q3b, "text", sent="negative"))
         answers_rows.append(answer(respid, "OL_ENERGY_KNOW", q4, "categorical", vnorm=(100 if str(q4).lower() == "yes" else 0)))
         for code, v in [("OL_ACTIVE_TRAVEL", q5), ("OL_SECURITY", q6), ("OL_PUBLIC_REALM", q7), ("OL_GRIEVANCE", q8), ("OL_WELLBEING_AWARE", q9)]:
-            answers_rows.append(answer(respid, code, int(v), "numeric", vnum=int(v), vnorm=norm15(v)))
+            vn = numish(v)
+            if vn is not None:
+                answers_rows.append(answer(respid, code, vn, "numeric", vnum=vn, vnorm=norm15(vn)))
         answers_rows.append(answer(respid, "OL_OFFERING_1", off1, "multi"))
         answers_rows.append(answer(respid, "OL_OFFERING_2", off2, "multi"))
         answers_rows.append(answer(respid, "OL_OPEN", text, "text", sent=sen))

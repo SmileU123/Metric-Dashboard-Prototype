@@ -66,12 +66,12 @@ export const SEED_PROJECTS: Project[] = [
 const KPI_DEFS: Array<
   [string, string, string, string, KpiConfig["definitions"][number]["calculation_type"], boolean, string]
 > = [
-  ["ENV_QUALITY", "Environmental Quality", "Dust, noise, air and mobility impact of the site, and mitigation efforts (plants, murals, etc.).", "environmental", "direct", false, "pts"],
-  ["PR_SAFETY_ACCESS", "Public Realm Safety & Accessibility", "Perception of safety, security and quality of the shared public realm.", "public_realm", "weighted_average", true, "pts"],
-  ["CIRC_MOBILITY", "Circularity & Mobility Integration", "Intuitiveness and uptake of recycling and active-travel infrastructure.", "mobility", "direct", false, "pts"],
-  ["SUSTAINABILITY", "Sustainability Performance", "Understanding of how to use the development's sustainability features (50/50 by tenure).", "sustainability", "direct_tenure_split", false, "pts"],
-  ["COMMUNITY_WELLBEING", "Community Wellbeing & Belonging", "Awareness of community events, green space and wellness initiatives (field + online).", "community", "weighted_average", true, "pts"],
-  ["HOUSING_AFFORDABILITY", "Operational Housing Affordability", "Agreement that living costs in the development are manageable and sustainable (50/50 by tenure).", "housing", "direct_tenure_split", false, "pts"],
+  ["ENV_QUALITY", "Environmental Quality", "Evaluates street-level environmental health, focusing on impacts of construction sites in terms of acoustic comfort, air purity, and local cleanliness. Identifies localized efforts to mitigate construction impact and enhance the physical environment.", "environmental", "direct", false, "pts"],
+  ["PR_SAFETY_ACCESS", "Public Realm, Safety & Accessibility", "Measures the inclusivity, physical security, and pedestrian infrastructure surrounding development and construction sites. Also measures awareness of physical spaces, parks and open spaces created by the developer in the local area.", "public_realm", "weighted_average", true, "pts"],
+  ["CIRC_MOBILITY", "Facilities for Sustainable Behaviours", "Tracks the tenant and occupier awareness of and use of green amenities like EV charging, waste hubs and cycle storage. Measures how effectively the physical asset infrastructure enables zero-carbon daily habits.", "mobility", "direct", false, "pts"],
+  ["SUSTAINABILITY", "Sustainability Performance", "Benchmarks tenant and occupier understanding of how to use a development's built-in sustainability and energy-efficiency features, adding crucial human operational data to traditional green targets and forecasting.", "sustainability", "direct_tenure_split", false, "pts"],
+  ["COMMUNITY_WELLBEING", "Community Wellbeing & Belonging", "Indexes localized social equity and community cohesion by tracking resident awareness and attendance of developer-organized wellness initiatives, neighborhood events, and hosted community activations.", "community", "weighted_average", true, "pts"],
+  ["HOUSING_AFFORDABILITY", "Operational Housing Affordability", "Monitors occupier sentiment regarding the predictability and manageability of combined ongoing costs of rent, service charges, and energy utilities. Acts as an early warning for economic stress and tenant churn risk.", "housing", "direct_tenure_split", false, "pts"],
 ];
 
 // source_key (question code) → weight, transformation. Scored categoricals
@@ -95,12 +95,14 @@ const KPI_FORMULA: Record<string, [KpiConfig["formulas"][number]["formula_type"]
   HOUSING_AFFORDABILITY: ["direct", "OL_COST_MANAGEABLE (agreement 1-5), 50/50 by tenure"],
 };
 
+// The four multi-option dials share one traffic-light band (green 65 / amber
+// 50); the two binary linear bars keep their own bands.
 const KPI_THRESH: Record<string, [number, number]> = {
-  ENV_QUALITY: [75, 40],
-  PR_SAFETY_ACCESS: [70, 40],
+  ENV_QUALITY: [65, 50],
+  PR_SAFETY_ACCESS: [65, 50],
   CIRC_MOBILITY: [70, 40],
-  SUSTAINABILITY: [70, 40],
-  COMMUNITY_WELLBEING: [65, 40],
+  SUSTAINABILITY: [65, 50],
+  COMMUNITY_WELLBEING: [65, 50],
   HOUSING_AFFORDABILITY: [65, 40],
 };
 

@@ -265,12 +265,12 @@ create policy kpi_runlog_read on public.kpi_runlog
 insert into public.kpi_definition
   (tenant_id, kpi_code, kpi_name, description, category, unit, unit_type, display_format, calculation_type, is_composite, display_order)
 values
-  (null,'ENV_QUALITY','Environmental Quality','Dust, noise, air and mobility impact of the site, and mitigation efforts (plants, murals, etc.).','environmental','pts','points','fixed_1dp','direct',false,1),
-  (null,'PR_SAFETY_ACCESS','Public Realm Safety & Accessibility','Perception of safety, security and quality of the shared public realm.','public_realm','pts','points','fixed_1dp','weighted_average',true,2),
-  (null,'CIRC_MOBILITY','Circularity & Mobility Integration','Intuitiveness and uptake of recycling and active-travel infrastructure.','mobility','pts','points','fixed_1dp','direct',false,3),
-  (null,'SUSTAINABILITY','Sustainability Performance','Understanding of how to use the development''s sustainability features (50/50 by tenure).','sustainability','pts','points','fixed_1dp','direct_tenure_split',false,4),
-  (null,'COMMUNITY_WELLBEING','Community Wellbeing & Belonging','Awareness of community events, green space and wellness initiatives (field + online).','community','pts','points','fixed_1dp','weighted_average',true,5),
-  (null,'HOUSING_AFFORDABILITY','Operational Housing Affordability','Agreement that living costs in the development are manageable and sustainable (50/50 by tenure).','housing','pts','points','fixed_1dp','direct_tenure_split',false,6);
+  (null,'ENV_QUALITY','Environmental Quality','Evaluates street-level environmental health, focusing on impacts of construction sites in terms of acoustic comfort, air purity, and local cleanliness. Identifies localized efforts to mitigate construction impact and enhance the physical environment.','environmental','pts','points','fixed_1dp','direct',false,1),
+  (null,'PR_SAFETY_ACCESS','Public Realm, Safety & Accessibility','Measures the inclusivity, physical security, and pedestrian infrastructure surrounding development and construction sites. Also measures awareness of physical spaces, parks and open spaces created by the developer in the local area.','public_realm','pts','points','fixed_1dp','weighted_average',true,2),
+  (null,'CIRC_MOBILITY','Facilities for Sustainable Behaviours','Tracks the tenant and occupier awareness of and use of green amenities like EV charging, waste hubs and cycle storage. Measures how effectively the physical asset infrastructure enables zero-carbon daily habits.','mobility','pts','points','fixed_1dp','direct',false,3),
+  (null,'SUSTAINABILITY','Sustainability Performance','Benchmarks tenant and occupier understanding of how to use a development''s built-in sustainability and energy-efficiency features, adding crucial human operational data to traditional green targets and forecasting.','sustainability','pts','points','fixed_1dp','direct_tenure_split',false,4),
+  (null,'COMMUNITY_WELLBEING','Community Wellbeing & Belonging','Indexes localized social equity and community cohesion by tracking resident awareness and attendance of developer-organized wellness initiatives, neighborhood events, and hosted community activations.','community','pts','points','fixed_1dp','weighted_average',true,5),
+  (null,'HOUSING_AFFORDABILITY','Operational Housing Affordability','Monitors occupier sentiment regarding the predictability and manageability of combined ongoing costs of rent, service charges, and energy utilities. Acts as an early warning for economic stress and tenant churn risk.','housing','pts','points','fixed_1dp','direct_tenure_split',false,6);
 
 -- Sources (source_key = survey column; weight; transformation)
 insert into public.kpi_sources (kpi_id, source_type, source_key, weight, transformation)
@@ -299,14 +299,17 @@ select id, ft, expr from (values
 ) as v(code,ft,expr)
 join public.kpi_definition d on d.kpi_code = v.code and d.tenant_id is null;
 
--- Thresholds (revised: amber floor 40 across the board)
+-- Thresholds. The four multi-option dials share one consistent traffic-light
+-- band (green >= 65, amber >= 50, red < 50) so their colours are comparable and
+-- the Rev-4 data reads as a clear spread (one green dial, one red dial). The two
+-- binary linear bars keep their own bands.
 insert into public.kpi_thresholds (kpi_id, condition_type, green_min, amber_min, red_min)
 select id, 'score_range', g, a, 0 from (values
-  ('ENV_QUALITY',75,40),
-  ('PR_SAFETY_ACCESS',70,40),
+  ('ENV_QUALITY',65,50),
+  ('PR_SAFETY_ACCESS',65,50),
   ('CIRC_MOBILITY',70,40),
-  ('SUSTAINABILITY',70,40),
-  ('COMMUNITY_WELLBEING',65,40),
+  ('SUSTAINABILITY',65,50),
+  ('COMMUNITY_WELLBEING',65,50),
   ('HOUSING_AFFORDABILITY',65,40)
 ) as v(code,g,a)
 join public.kpi_definition d on d.kpi_code = v.code and d.tenant_id is null;

@@ -16,12 +16,14 @@ import {
   fetchKpiConfig,
   fetchResponses,
   fetchTenants,
+  fetchTextAnswers,
 } from "@/data/repository";
 import { applyTenantTheme } from "@/config/theme";
 import type {
   FilterState,
   KpiConfig,
   SurveyResponse,
+  TextAnswer,
   Tenant,
 } from "@/data/types";
 
@@ -48,6 +50,10 @@ interface AppState {
   setFilter: (key: keyof FilterState, value: string) => void;
   resetFilters: () => void;
   responses: SurveyResponse[]; // already filtered by Q1-Q3
+  // Every qualitative text answer for the tenant (FS_OPEN, OL_OPEN AND the
+  // Online Q3B cost follow-ups). Shared so the Sentiment Distribution card is
+  // computed from the SAME source on Page 1 and the qualitative deep dive.
+  textAnswers: TextAnswer[];
   kpiConfig: KpiConfig;
   setKpiConfig: (updater: (prev: KpiConfig) => KpiConfig) => void;
 }
@@ -61,6 +67,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
   const [filters, setFilters] = useState<FilterState>(NO_FILTERS);
   const [responses, setResponses] = useState<SurveyResponse[]>([]);
+  const [textAnswers, setTextAnswers] = useState<TextAnswer[]>([]);
   const [kpiConfig, setKpiConfig] = useState<KpiConfig>(EMPTY_KPI_CONFIG);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -105,6 +112,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, [tenantId, filters]);
 
+  // Tenant-level qualitative text answers (not Q1-Q3 filtered): the unified
+  // sentiment source for Page 1 and the qualitative deep dive.
+  useEffect(() => {
+    if (!tenantId) return;
+    let cancelled = false;
+    fetchTextAnswers(tenantId)
+      .then((a) => !cancelled && setTextAnswers(a))
+      .catch(() => !cancelled && setTextAnswers([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [tenantId]);
+
   const setFilter = useCallback(
     (key: keyof FilterState, value: string) =>
       setFilters((f) => ({ ...f, [key]: value })),
@@ -122,6 +142,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setFilter,
     resetFilters,
     responses,
+    textAnswers,
     kpiConfig,
     setKpiConfig,
   };

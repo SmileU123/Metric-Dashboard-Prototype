@@ -40,16 +40,21 @@ export function Ring({
   state,
   size = 128,
   label,
+  centerText,
+  color,
 }: {
   value: number;
   max: number;
   state: ComplianceState;
   size?: number;
   label?: string;
+  centerText?: string; // overrides the numeric center (e.g. a "3/17" fraction)
+  color?: string; // overrides the state color (e.g. the brand accent)
 }) {
   const f = clampFrac(value, max);
   const r = size / 2 - 10;
   const c = size / 2;
+  const stroke = color ?? stateColor(state);
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
       <circle cx={c} cy={c} r={r} fill="none" stroke={TRACK} strokeWidth={10} />
@@ -58,7 +63,7 @@ export function Ring({
         cy={c}
         r={r}
         fill="none"
-        style={{ stroke: stateColor(state) }}
+        style={{ stroke }}
         strokeWidth={10}
         strokeLinecap="round"
         pathLength={100}
@@ -70,9 +75,9 @@ export function Ring({
         y={c - 2}
         textAnchor="middle"
         className="fill-ink"
-        style={{ fontSize: size * 0.2, fontWeight: 700 }}
+        style={{ fontSize: centerText ? size * 0.22 : size * 0.2, fontWeight: 700 }}
       >
-        {fmt1(value)}
+        {centerText ?? fmt1(value)}
       </text>
       {label && (
         <text
@@ -89,45 +94,78 @@ export function Ring({
   );
 }
 
-/* ---- Semicircle gauge ----------------------------------------------------- */
+/* ---- Semicircle gauge (unified 180° dial) --------------------------------- */
+// The single dial design for all four multi-option KPIs. Unified stroke, color
+// profile and draw animation; a threshold marker line sits at the "green / high
+// outcome" point, and the numeric score rests on the baseline of the half-arc.
+const GAUGE_STROKE = 12;
 export function Gauge({
   value,
   max,
   state,
   width = 180,
+  threshold,
 }: {
   value: number;
   max: number;
   state: ComplianceState;
   width?: number;
+  threshold?: number; // green/high-outcome mark, in value units
 }) {
   const f = clampFrac(value, max);
-  const r = width / 2 - 12;
+  const r = width / 2 - 14;
   const cx = width / 2;
   const cy = width / 2;
-  const height = width / 2 + 16;
+  const height = width / 2 + 20;
+  const full = arc(cx, cy, r, -90, 90);
+
+  // Threshold marker: a short radial tick crossing the arc at the green point.
+  let marker = null;
+  if (threshold != null) {
+    const ta = -90 + clampFrac(threshold, max) * 180;
+    const inner = pt(cx, cy, r - GAUGE_STROKE / 2 - 3, ta);
+    const outer = pt(cx, cy, r + GAUGE_STROKE / 2 + 3, ta);
+    marker = (
+      <line
+        x1={inner.x}
+        y1={inner.y}
+        x2={outer.x}
+        y2={outer.y}
+        style={{ stroke: "rgb(var(--ink))" }}
+        strokeWidth={2.5}
+        strokeLinecap="round"
+      />
+    );
+  }
+
   return (
     <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
       <path
-        d={arc(cx, cy, r, -90, 90)}
+        d={full}
         fill="none"
         stroke={TRACK}
-        strokeWidth={12}
+        strokeWidth={GAUGE_STROKE}
         strokeLinecap="round"
       />
       <path
-        d={arc(cx, cy, r, -90, -90 + f * 180)}
+        d={full}
         fill="none"
-        style={{ stroke: stateColor(state) }}
-        strokeWidth={12}
+        pathLength={100}
+        strokeDasharray={`${f * 100} 100`}
+        style={{
+          stroke: stateColor(state),
+          transition: "stroke-dasharray 0.6s ease",
+        }}
+        strokeWidth={GAUGE_STROKE}
         strokeLinecap="round"
       />
+      {marker}
       <text
         x={cx}
-        y={cy - 4}
+        y={cy - 3}
         textAnchor="middle"
         className="fill-ink"
-        style={{ fontSize: width * 0.15, fontWeight: 700 }}
+        style={{ fontSize: width * 0.17, fontWeight: 700 }}
       >
         {fmt1(value)}
       </text>

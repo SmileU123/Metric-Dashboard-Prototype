@@ -17,6 +17,7 @@ import {
   IMPACT_THEMES,
   impactHeader,
   matchesCohort,
+  topDemand,
   type ImpactColumn,
 } from "@/config/defensiveDesign";
 import type { SurveyResponse } from "@/data/types";
@@ -39,6 +40,7 @@ export function DeepDivePage() {
   );
 
   const themes = IMPACT_THEMES.filter((t) => page.columns.includes(t.column));
+  const demand = page.demand ? topDemand(cohort, page.demand.codes) : null;
 
   return (
     <div>
@@ -55,8 +57,27 @@ export function DeepDivePage() {
         </div>
       )}
 
-      {/* Per-theme averages — abstracted headers, never literal question text. */}
+      {/* Top-row header metrics: the Primary Demand dial sits alongside the
+          per-theme cohort averages (same card frame / circular dial). */}
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {page.demand && demand && (
+          <Card className="flex items-center gap-4 p-5">
+            <Ring
+              value={demand.count}
+              max={demand.total}
+              state="green"
+              size={72}
+              centerText={`${demand.count}/${demand.total}`}
+              color="rgb(var(--brand))"
+            />
+            <div>
+              <p className="text-sm font-medium text-muted">{page.demand.label}</p>
+              <p className="mt-1 text-sm font-semibold leading-snug text-ink">
+                {demand.label}
+              </p>
+            </div>
+          </Card>
+        )}
         {themes.map((t) => {
           const avg = themeAverage(cohort, t.column);
           return (

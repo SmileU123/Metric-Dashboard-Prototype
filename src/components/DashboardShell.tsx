@@ -34,8 +34,10 @@ export function DashboardShell({ children }: { children: ReactNode }) {
       {/* Sidebar */}
       <aside className="hidden w-60 shrink-0 border-r border-line bg-surface px-3 py-5 md:block">
         <div className="px-3">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted">
-            Data Monitoring
+          {/* Phase-2 platform name placeholder (styling/logo TBD by others) */}
+          <p className="text-xl font-bold text-ink">SOSC_int</p>
+          <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-muted">
+            Portfolio Monitoring
           </p>
           <p className="mt-0.5 text-lg font-semibold text-brand">
             {tenant?.branding?.logoText ?? tenant?.name ?? "Platform"}
@@ -92,7 +94,10 @@ export function DashboardShell({ children }: { children: ReactNode }) {
               </label>
               <DataSourceBadge />
             </div>
-            <div className="flex flex-wrap items-center gap-3">
+            {/* Single flex toolbar: the Q1-Q3 dropdowns and the Export button
+                share one row, bottom-aligned so the button sits on the same
+                baseline as the dropdown inputs (not floating above them). */}
+            <div className="flex flex-wrap items-end gap-3">
               <FilterBar />
               {/* Global export — demo placeholder, gated until Phase 2 */}
               <button

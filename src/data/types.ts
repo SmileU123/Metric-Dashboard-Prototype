@@ -95,6 +95,7 @@ export interface SurveyResponse {
 export interface MetricView {
   slot_index: number;
   metric_title: string;
+  metric_description: string; // operational definition, shown as card footer
   metric_value: string; // formatted, with unit
   raw_value: number;
   compliance_state: ComplianceState;

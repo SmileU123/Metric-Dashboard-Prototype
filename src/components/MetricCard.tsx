@@ -59,7 +59,7 @@ export function MetricCard({ metric, viz }: { metric: MetricView; viz: KpiViz })
   const chart = renderChart(metric, viz);
 
   return (
-    <Card className="flex flex-col p-5">
+    <Card className="flex h-full flex-col p-5">
       <div className="flex items-start justify-between gap-3">
         <p className="text-sm font-medium text-muted">{metric.metric_title}</p>
         <TrafficLight state={metric.compliance_state} showLabel />
@@ -88,6 +88,16 @@ export function MetricCard({ metric, viz }: { metric: MetricView; viz: KpiViz })
           <div className="mt-3">{chart}</div>
         </>
       )}
+
+      {/* Operational definition — full-width off-grey subtext footer, sunk to
+          the bottom padding so footers align across a row */}
+      {metric.metric_description && (
+        <p className="mt-auto pt-4 text-xs leading-snug text-muted/80">
+          <span className="block border-t border-line/70 pt-3">
+            {metric.metric_description}
+          </span>
+        </p>
+      )}
     </Card>
   );
 }
@@ -96,7 +106,13 @@ function renderChart(m: MetricView, viz: KpiViz) {
   switch (viz) {
     case "gauge":
       return (
-        <Gauge value={m.raw_value} max={m.scale_max} state={m.compliance_state} width={150} />
+        <Gauge
+          value={m.raw_value}
+          max={m.scale_max}
+          state={m.compliance_state}
+          width={150}
+          threshold={m.green_at}
+        />
       );
     case "ring":
       return (

@@ -228,6 +228,7 @@ export function runKpiEngine(
       // card/chart fields (MetricView)
       slot_index: d.display_order,
       metric_title: d.kpi_name,
+      metric_description: d.description ?? "",
       metric_value: formatValue(value, unit, d.display_format ?? "fixed_1dp"),
       raw_value: value,
       compliance_state: state,

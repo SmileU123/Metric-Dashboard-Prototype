@@ -6,7 +6,11 @@ import { SentimentTag } from "./ScoreBadge";
 import { cn } from "@/lib/cn";
 import type { SurveyResponse, Sentiment } from "@/data/types";
 
-function distribution(rows: SurveyResponse[]) {
+// Accepts anything sentiment-bearing — full responses OR lighter rows (e.g. the
+// multi-stream text answers), so the same card can render either source.
+type SentimentRow = { q10_sentiment: Sentiment };
+
+function distribution(rows: SentimentRow[]) {
   const counts: Record<Sentiment, number> = {
     positive: 0,
     neutral: 0,
@@ -29,7 +33,7 @@ const BAR: Record<Sentiment, string> = {
 
 // Three separate, labelled bars — easier to compare at a glance than one
 // merged/stacked bar.
-export function SentimentSummary({ rows }: { rows: SurveyResponse[] }) {
+export function SentimentSummary({ rows }: { rows: SentimentRow[] }) {
   const dist = distribution(rows);
   return (
     <Card className="p-5">

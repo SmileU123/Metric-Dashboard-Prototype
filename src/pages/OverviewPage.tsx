@@ -11,7 +11,7 @@ import { useApp } from "@/state/AppContext";
 import { runKpiEngine } from "@/data/kpiEngine";
 import { KPI_VIZ } from "@/config/defensiveDesign";
 import { cn } from "@/lib/cn";
-import type { SurveyResponse } from "@/data/types";
+import type { Sentiment, SurveyResponse } from "@/data/types";
 
 function cohortCounts(rows: SurveyResponse[]) {
   const c = { construction: 0, btr: 0, bts: 0 };
@@ -67,7 +67,7 @@ function CohortMix({ rows }: { rows: SurveyResponse[] }) {
 }
 
 export function OverviewPage() {
-  const { kpiConfig, responses, loading, tenant } = useApp();
+  const { kpiConfig, responses, textAnswers, loading, tenant } = useApp();
 
   const engine = useMemo(
     () => runKpiEngine(kpiConfig, responses, tenant?.id ?? ""),
@@ -75,13 +75,29 @@ export function OverviewPage() {
   );
   const metrics = engine.results;
 
+  // Sentiment is computed from the SAME multi-stream qualitative source as the
+  // deep dive (every text answer incl. Online Q3B), so the distribution is
+  // unified across both views.
+  const sentimentRows = useMemo(
+    () =>
+      textAnswers
+        .filter((a) => a.sentiment)
+        .map((a) => ({ q10_sentiment: a.sentiment as Sentiment })),
+    [textAnswers]
+  );
+
   const positivePct = useMemo(() => {
-    if (responses.length === 0) return 0;
+    if (sentimentRows.length === 0) return 0;
     return Math.round(
-      (100 * responses.filter((r) => r.q10_sentiment === "positive").length) /
-        responses.length
+      (100 * sentimentRows.filter((r) => r.q10_sentiment === "positive").length) /
+        sentimentRows.length
     );
-  }, [responses]);
+  }, [sentimentRows]);
+
+  // Split the six KPIs into the four multi-option dials and the two binary
+  // linear bars, so the grid can lock them into the required column groups.
+  const dials = metrics.filter((m) => KPI_VIZ[m.slot_index] !== "bartarget");
+  const bars = metrics.filter((m) => KPI_VIZ[m.slot_index] === "bartarget");
 
   return (
     <div>
@@ -106,19 +122,38 @@ export function OverviewPage() {
         </div>
       </Card>
 
-      {/* Varied KPI grid */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {loading
-          ? Array.from({ length: 6 }).map((_, i) => <MetricCardSkeleton key={i} />)
-          : metrics.map((m) => (
-              <MetricCard key={m.slot_index} metric={m} viz={KPI_VIZ[m.slot_index] ?? "ring"} />
+      {/* Locked KPI grid — 3 columns / 2 rows on desktop:
+          Col 1-2: the four multi-option dials (ENV/Public Realm top,
+          Sustainability/Community bottom). Col 3: the two binary linear bars
+          (Facilities top, Housing bottom) stacked. On narrow screens the four
+          dials stack first, then the two bars. */}
+      {loading ? (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <MetricCardSkeleton key={i} />
+          ))}
+        </div>
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-3">
+          {/* Dial block: cols 1-2, a 2×2 grid of half-circle dials */}
+          <div className="grid gap-4 sm:grid-cols-2 lg:col-span-2">
+            {dials.map((m) => (
+              <MetricCard key={m.slot_index} metric={m} viz={KPI_VIZ[m.slot_index] ?? "gauge"} />
             ))}
-      </div>
+          </div>
+          {/* Binary stack: col 3, the two linear bars stacked and paired */}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 lg:grid-rows-2">
+            {bars.map((m) => (
+              <MetricCard key={m.slot_index} metric={m} viz={KPI_VIZ[m.slot_index] ?? "bartarget"} />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Secondary analytics */}
       <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <CohortMix rows={responses} />
-        <SentimentSummary rows={responses} />
+        <SentimentSummary rows={sentimentRows} />
       </div>
 
       {/* KPI engine audit footer (KPI_RunLog) */}

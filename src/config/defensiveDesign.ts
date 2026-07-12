@@ -81,6 +81,13 @@ export interface WantSlot {
   topN?: number;
 }
 
+// Primary Demand dial (top-of-page header metric): the single most-voted
+// desired offering for the cohort, shown as an item name + respondent fraction.
+export interface DemandDial {
+  label: string; // "Primary Occupier Demand" | "Primary Community Demand"
+  codes: string[]; // offering question codes to tally (top choice wins)
+}
+
 export interface DeepDivePage {
   slug: string;
   title: string;
@@ -92,6 +99,7 @@ export interface DeepDivePage {
   rawColumns?: RawColumn[]; // verbatim categorical captures
   showTenure?: boolean; // field intercepts have no tenure — hide the column
   wantSlot?: WantSlot; // "this is what people want" aggregation panel
+  demand?: DemandDial; // Primary Demand header dial
 }
 
 const FIELD_COLUMNS: ImpactColumn[] = [
@@ -126,6 +134,7 @@ export const DEEP_DIVE_PAGES: DeepDivePage[] = [
     typology: "construction_adjacent",
     columns: FIELD_COLUMNS,
     showTenure: false, // field intercepts carry no tenure
+    demand: { label: "Primary Community Demand", codes: ["FS_OFFERING"] },
     rawColumns: [
       // F-Q2 shows the 0-100 mapped accessibility score; F-Q3 the verbatim
       // proximity code. F-Q6B sits AFTER the impact themes, next to F-Q6.
@@ -147,6 +156,7 @@ export const DEEP_DIVE_PAGES: DeepDivePage[] = [
     typology: "resident_completed",
     delivery: "build_to_rent",
     columns: ONLINE_COLUMNS,
+    demand: { label: "Primary Occupier Demand", codes: ["OL_OFFERING_1", "OL_OFFERING_2"] },
     rawColumns: ONLINE_RAW_COLUMNS,
     // wantSlot: {
     //   title: "What people want",
@@ -162,6 +172,7 @@ export const DEEP_DIVE_PAGES: DeepDivePage[] = [
     typology: "resident_completed",
     delivery: "build_to_sell",
     columns: ONLINE_COLUMNS,
+    demand: { label: "Primary Occupier Demand", codes: ["OL_OFFERING_1", "OL_OFFERING_2"] },
     rawColumns: ONLINE_RAW_COLUMNS,
     // wantSlot: {
     //   title: "What people want",
@@ -213,6 +224,32 @@ export function tallyWants(
     .slice(0, slot.topN ?? 6);
 }
 
+// Primary Demand: the single most-requested offering across a cohort, as a
+// respondent fraction. Each respondent counts once per distinct label (so a
+// two-pick Q10A/Q10B respondent can back two different items, but not the same
+// one twice). Returns the winner + how many of the answering respondents chose
+// it, e.g. { label: "Community Events", count: 3, total: 17 }.
+export function topDemand(
+  rows: SurveyResponse[],
+  codes: string[]
+): { label: string; count: number; total: number } | null {
+  const counts = new Map<string, number>();
+  let answered = 0;
+  for (const r of rows) {
+    const picks = new Set<string>();
+    for (const code of codes) {
+      const raw = rawValue(r, code);
+      if (raw) picks.add(prettyOffering(raw));
+    }
+    if (picks.size === 0) continue;
+    answered++;
+    for (const label of picks) counts.set(label, (counts.get(label) ?? 0) + 1);
+  }
+  if (answered === 0) return null;
+  const [winner] = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  return { label: winner[0], count: winner[1], total: answered };
+}
+
 // Predicate: does a response belong to this deep-dive cohort?
 export const matchesCohort = (r: SurveyResponse, page: DeepDivePage): boolean =>
   r.respondent_typology === page.typology &&
@@ -221,12 +258,16 @@ export const matchesCohort = (r: SurveyResponse, page: DeepDivePage): boolean =>
 // ---- Page 1 visualization per KPI slot --------------------------------------
 export type KpiViz = "gauge" | "ring" | "zonebar" | "columns" | "area" | "bartarget";
 
+// Locked layout (client amendment 10.07.26): the four multi-option KPIs are
+// identical half-circle dials; the two binary KPIs are identical linear bars.
+//   slot 1 ENV · 2 Public Realm · 4 Sustainability · 5 Community  -> dial
+//   slot 3 Facilities for Sustainable Behaviours · 6 Housing      -> linear bar
 export const KPI_VIZ: Record<number, KpiViz> = {
   1: "gauge",
-  2: "ring",
-  3: "zonebar",
+  2: "gauge",
+  3: "bartarget",
   4: "gauge",
-  5: "ring",
+  5: "gauge",
   6: "bartarget",
 };
 

@@ -6,12 +6,11 @@
 // Controls: sentiment toggle, channel filter, QUESTION FILTER (isolate a
 // stream), text search, clickable theme clusters, 30/page pagination.
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { PageHeader, Card } from "@/components/ui";
 import { SentimentSummary } from "@/components/SentimentFeed";
 import { SentimentTag } from "@/components/ScoreBadge";
 import { useApp } from "@/state/AppContext";
-import { fetchTextAnswers } from "@/data/repository";
 import { extractThemes, responseMatchesTheme } from "@/config/textThemes";
 import { TEXT_STREAMS, textStreamLabel } from "@/config/defensiveDesign";
 import { cn } from "@/lib/cn";
@@ -51,9 +50,10 @@ function fmtDate(iso: string) {
 }
 
 export function QualitativePage() {
-  const { tenant, responses } = useApp();
+  // textAnswers comes from shared app state — the SAME source Page 1's Sentiment
+  // Distribution card reads, so the two views are guaranteed to agree.
+  const { responses, textAnswers } = useApp();
 
-  const [textAnswers, setTextAnswers] = useState<TextAnswer[]>([]);
   const [sentiment, setSentiment] = useState<"all" | Sentiment>("all");
   const [channel, setChannel] = useState<"all" | ResponseSource>("all");
   const [question, setQuestion] = useState<"all" | string>("all");
@@ -61,16 +61,15 @@ export function QualitativePage() {
   const [theme, setTheme] = useState<string | null>(null);
   const [page, setPage] = useState(0);
 
-  useEffect(() => {
-    if (!tenant) return;
-    let cancelled = false;
-    fetchTextAnswers(tenant.id)
-      .then((a) => !cancelled && setTextAnswers(a))
-      .catch(() => !cancelled && setTextAnswers([]));
-    return () => {
-      cancelled = true;
-    };
-  }, [tenant]);
+  // Unified Sentiment Distribution: every qualitative text answer (incl. Online
+  // Q3B), independent of the ledger filters — matches Page 1 exactly.
+  const sentimentRows = useMemo(
+    () =>
+      textAnswers
+        .filter((a) => a.sentiment)
+        .map((a) => ({ q10_sentiment: a.sentiment as Sentiment })),
+    [textAnswers]
+  );
 
   // Multi-stream entries: join text answers onto the (globally Q1–Q3-filtered)
   // responses — one ledger entry per text answer.
@@ -139,7 +138,7 @@ export function QualitativePage() {
       />
 
       <div className="mb-6">
-        <SentimentSummary rows={filtered} />
+        <SentimentSummary rows={sentimentRows} />
       </div>
 
       {/* Thematic clustering — click a theme to filter the ledger below */}
