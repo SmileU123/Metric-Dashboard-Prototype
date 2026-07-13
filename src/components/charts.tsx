@@ -72,8 +72,9 @@ export function Ring({
       />
       <text
         x={c}
-        y={c - 2}
+        y={label ? c - size * 0.04 : c}
         textAnchor="middle"
+        dominantBaseline="central"
         className="fill-ink"
         style={{ fontSize: centerText ? size * 0.22 : size * 0.2, fontWeight: 700 }}
       >
@@ -98,19 +99,21 @@ export function Ring({
 // The single dial design for all four multi-option KPIs. Unified stroke, color
 // profile and draw animation; a threshold marker line sits at the "green / high
 // outcome" point, and the numeric score rests on the baseline of the half-arc.
-const GAUGE_STROKE = 12;
+const GAUGE_STROKE = 14;
 export function Gauge({
   value,
   max,
   state,
   width = 180,
   threshold,
+  amberThreshold,
 }: {
   value: number;
   max: number;
   state: ComplianceState;
   width?: number;
-  threshold?: number; // green/high-outcome mark, in value units
+  threshold?: number; // green / high-outcome boundary, in value units
+  amberThreshold?: number; // amber / risk boundary, in value units
 }) {
   const f = clampFrac(value, max);
   const r = width / 2 - 14;
@@ -119,24 +122,30 @@ export function Gauge({
   const height = width / 2 + 20;
   const full = arc(cx, cy, r, -90, 90);
 
-  // Threshold marker: a short radial tick crossing the arc at the green point.
-  let marker = null;
-  if (threshold != null) {
-    const ta = -90 + clampFrac(threshold, max) * 180;
-    const inner = pt(cx, cy, r - GAUGE_STROKE / 2 - 3, ta);
-    const outer = pt(cx, cy, r + GAUGE_STROKE / 2 + 3, ta);
-    marker = (
-      <line
-        x1={inner.x}
-        y1={inner.y}
-        x2={outer.x}
-        y2={outer.y}
-        style={{ stroke: "rgb(var(--ink))" }}
-        strokeWidth={2.5}
-        strokeLinecap="round"
-      />
+  // A dashed radial tick at a boundary, confined to the arc band (mirrors the
+  // linear gauge's dashed reference lines). A small dot just inside the ring
+  // colour-codes it: green = high-outcome, amber = risk floor.
+  const tickAt = (val: number, dot: string, key: string) => {
+    const ta = -90 + clampFrac(val, max) * 180;
+    const inner = pt(cx, cy, r - GAUGE_STROKE / 2, ta);
+    const outer = pt(cx, cy, r + GAUGE_STROKE / 2, ta);
+    const chip = pt(cx, cy, r - GAUGE_STROKE / 2 - 4, ta);
+    return (
+      <g key={key}>
+        <line
+          x1={inner.x}
+          y1={inner.y}
+          x2={outer.x}
+          y2={outer.y}
+          style={{ stroke: "rgb(var(--ink))" }}
+          strokeWidth={2}
+          strokeDasharray="2.5 2"
+          strokeLinecap="butt"
+        />
+        <circle cx={chip.x} cy={chip.y} r={2.2} style={{ fill: dot }} />
+      </g>
     );
-  }
+  };
 
   return (
     <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
@@ -159,7 +168,8 @@ export function Gauge({
         strokeWidth={GAUGE_STROKE}
         strokeLinecap="round"
       />
-      {marker}
+      {amberThreshold != null && tickAt(amberThreshold, stateColor("amber"), "amber")}
+      {threshold != null && tickAt(threshold, stateColor("green"), "green")}
       <text
         x={cx}
         y={cy - 3}
@@ -344,20 +354,36 @@ export function TrendArea({
   );
 }
 
-/* ---- Horizontal bar with a target line ------------------------------------ */
+/* ---- Horizontal bar with target + risk reference lines -------------------- */
 export function BarTarget({
   value,
   max,
   target,
+  amber,
   state,
   unit = "",
 }: {
   value: number;
   max: number;
-  target: number;
+  target: number; // green / high-outcome boundary
+  amber?: number; // amber / risk boundary
   state: ComplianceState;
   unit?: string;
 }) {
+  // A dashed vertical reference line with a colour-coded cap on top.
+  const refLine = (val: number, dot: string, label: string) => (
+    <div
+      className="absolute top-0 h-full border-l-2 border-dashed"
+      style={{ left: `${clampFrac(val, max) * 100}%`, borderColor: "rgb(var(--ink))" }}
+      title={label}
+    >
+      <span
+        className="absolute -left-[3px] -top-[3px] h-1.5 w-1.5 rounded-full"
+        style={{ backgroundColor: dot }}
+      />
+    </div>
+  );
+
   return (
     <div className="w-full">
       <div className="relative h-6 w-full overflow-hidden rounded-md bg-canvas">
@@ -365,15 +391,18 @@ export function BarTarget({
           className="h-full rounded-md"
           style={{ width: `${clampFrac(value, max) * 100}%`, backgroundColor: stateColor(state) }}
         />
-        <div
-          className="absolute top-0 h-full border-l-2 border-dashed"
-          style={{ left: `${clampFrac(target, max) * 100}%`, borderColor: "rgb(var(--ink))" }}
-          title={`Target ${target}${unit}`}
-        />
+        {amber != null && refLine(amber, stateColor("amber"), `Risk floor ${amber}${unit}`)}
+        {refLine(target, stateColor("green"), `Target ${target}${unit}`)}
       </div>
       <div className="mt-1 flex justify-between text-[10px] text-muted">
         <span>0{unit}</span>
         <span>
+          {amber != null && (
+            <>
+              risk {amber}
+              {unit} ·{" "}
+            </>
+          )}
           target {target}
           {unit}
         </span>

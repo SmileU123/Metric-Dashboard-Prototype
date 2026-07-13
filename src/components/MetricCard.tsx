@@ -112,6 +112,7 @@ function renderChart(m: MetricView, viz: KpiViz) {
           state={m.compliance_state}
           width={150}
           threshold={m.green_at}
+          amberThreshold={m.amber_at}
         />
       );
     case "ring":
@@ -143,6 +144,7 @@ function renderChart(m: MetricView, viz: KpiViz) {
           value={m.raw_value}
           max={m.scale_max}
           target={m.green_at}
+          amber={m.amber_at}
           state={m.compliance_state}
           unit={m.unit === "%" ? "%" : ""}
         />

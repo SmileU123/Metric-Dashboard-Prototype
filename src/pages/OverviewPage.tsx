@@ -109,7 +109,7 @@ export function OverviewPage() {
       {/* Summary hero */}
       <Card className="mb-6 bg-gradient-to-r from-brand/5 to-transparent p-5">
         <div className="flex flex-wrap items-center gap-8">
-          <StatTile label="Responses" value={responses.length.toLocaleString()} accent />
+          <StatTile label="Respondents" value={responses.length.toLocaleString()} accent />
           <StatTile label="Positive sentiment" value={`${positivePct}%`} />
           <StatTile
             label="KPIs on track"

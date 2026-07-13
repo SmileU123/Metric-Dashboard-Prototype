@@ -41,7 +41,14 @@ export function SentimentSummary({ rows }: { rows: SentimentRow[] }) {
         <p className="text-sm font-medium text-muted">
           Sentiment Distribution
         </p>
-        <p className="text-xs text-muted">{rows.length.toLocaleString()} responses</p>
+        {/* Counts qualitative data points (every text answer incl. Online
+            Q3B), not respondents — a distinct unit from the 54 respondents. */}
+        <p
+          className="text-xs text-muted"
+          title="Every qualitative text answer across streams, including the Online Q3B cost follow-ups"
+        >
+          {rows.length.toLocaleString()} Qualitative Data Points
+        </p>
       </div>
       <div className="mt-4 space-y-3">
         {dist.map((d) => (

@@ -66,7 +66,7 @@ export function DeepDivePage() {
               value={demand.count}
               max={demand.total}
               state="green"
-              size={72}
+              size={80}
               centerText={`${demand.count}/${demand.total}`}
               color="rgb(var(--brand))"
             />
@@ -82,7 +82,7 @@ export function DeepDivePage() {
           const avg = themeAverage(cohort, t.column);
           return (
             <Card key={t.column} className="flex items-center gap-4 p-5">
-              <Ring value={avg} max={100} state={scoreState(avg)} size={72} />
+              <Ring value={avg} max={100} state={scoreState(avg)} size={80} />
               <div>
                 <p className="text-sm font-medium text-ink">{impactHeader(t)}</p>
                 <p className="mt-1 text-xs text-muted">Cohort mean (0–100)</p>
