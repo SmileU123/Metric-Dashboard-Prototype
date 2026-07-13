@@ -154,7 +154,7 @@ export function Gauge({
         fill="none"
         stroke={TRACK}
         strokeWidth={GAUGE_STROKE}
-        strokeLinecap="round"
+        strokeLinecap="butt"
       />
       <path
         d={full}
@@ -166,7 +166,7 @@ export function Gauge({
           transition: "stroke-dasharray 0.6s ease",
         }}
         strokeWidth={GAUGE_STROKE}
-        strokeLinecap="round"
+        strokeLinecap="butt"
       />
       {amberThreshold != null && tickAt(amberThreshold, stateColor("amber"), "amber")}
       {threshold != null && tickAt(threshold, stateColor("green"), "green")}
