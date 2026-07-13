@@ -134,7 +134,7 @@ export function QualitativePage() {
     <div>
       <PageHeader
         title="Qualitative Feedback"
-        subtitle="Multi-stream text intake — Field Q7, Online Q3B and Online Q10, with backend sentiment tagging."
+        subtitle="Cross-portfolio open-ended responses from both field and online surveys"
       />
 
       <div className="mb-6">

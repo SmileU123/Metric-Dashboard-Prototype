@@ -394,22 +394,9 @@ export function BarTarget({
         {amber != null && refLine(amber, stateColor("amber"), `Risk floor ${amber}${unit}`)}
         {refLine(target, stateColor("green"), `Target ${target}${unit}`)}
       </div>
-      <div className="mt-1 flex justify-between text-[10px] text-muted">
-        <span>0{unit}</span>
-        <span>
-          {amber != null && (
-            <>
-              risk {amber}
-              {unit} ·{" "}
-            </>
-          )}
-          target {target}
-          {unit}
-        </span>
-        <span>
-          {Math.round(max)}
-          {unit}
-        </span>
+      <div className="mt-1.5 text-center text-[11px] font-medium text-muted">
+        Target: {target}
+        {unit}
       </div>
     </div>
   );

@@ -94,11 +94,6 @@ export function OverviewPage() {
     );
   }, [sentimentRows]);
 
-  // Split the six KPIs into the four multi-option dials and the two binary
-  // linear bars, so the grid can lock them into the required column groups.
-  const dials = metrics.filter((m) => KPI_VIZ[m.slot_index] !== "bartarget");
-  const bars = metrics.filter((m) => KPI_VIZ[m.slot_index] === "bartarget");
-
   return (
     <div>
       <PageHeader
@@ -122,11 +117,12 @@ export function OverviewPage() {
         </div>
       </Card>
 
-      {/* Locked KPI grid — 3 columns / 2 rows on desktop:
-          Col 1-2: the four multi-option dials (ENV/Public Realm top,
-          Sustainability/Community bottom). Col 3: the two binary linear bars
-          (Facilities top, Housing bottom) stacked. On narrow screens the four
-          dials stack first, then the two bars. */}
+      {/* Locked KPI grid — one grid so every card in a row shares the same
+          height (dials and linear bars align). Desktop (lg) is 3 cols × 2 rows
+          in reading order: row 1 ENV / Public Realm / Facilities, row 2
+          Sustainability / Community / Housing. On narrower screens the two
+          linear bars are pushed last via `order`, so it reads as the four dials
+          first, then the two bars. */}
       {loading ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
@@ -134,19 +130,18 @@ export function OverviewPage() {
           ))}
         </div>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-3">
-          {/* Dial block: cols 1-2, a 2×2 grid of half-circle dials */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:col-span-2">
-            {dials.map((m) => (
-              <MetricCard key={m.slot_index} metric={m} viz={KPI_VIZ[m.slot_index] ?? "gauge"} />
-            ))}
-          </div>
-          {/* Binary stack: col 3, the two linear bars stacked and paired */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 lg:grid-rows-2">
-            {bars.map((m) => (
-              <MetricCard key={m.slot_index} metric={m} viz={KPI_VIZ[m.slot_index] ?? "bartarget"} />
-            ))}
-          </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {metrics.map((m) => {
+            const viz = KPI_VIZ[m.slot_index] ?? "gauge";
+            return (
+              <MetricCard
+                key={m.slot_index}
+                metric={m}
+                viz={viz}
+                className={viz === "bartarget" ? "order-last lg:order-none" : undefined}
+              />
+            );
+          })}
         </div>
       )}
 

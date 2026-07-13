@@ -17,6 +17,7 @@ import {
 } from "./charts";
 import type { KpiViz } from "@/config/defensiveDesign";
 import type { MetricView } from "@/data/types";
+import { cn } from "@/lib/cn";
 
 // Quarter-over-quarter movement. Compares the latest quarter WITH data against
 // the previous quarter WITH data — empty quarters (value 0 = no responses) are
@@ -55,11 +56,19 @@ function TrendDelta({ m }: { m: MetricView }) {
 
 const isRadial = (viz: KpiViz) => viz === "gauge" || viz === "ring";
 
-export function MetricCard({ metric, viz }: { metric: MetricView; viz: KpiViz }) {
+export function MetricCard({
+  metric,
+  viz,
+  className,
+}: {
+  metric: MetricView;
+  viz: KpiViz;
+  className?: string;
+}) {
   const chart = renderChart(metric, viz);
 
   return (
-    <Card className="flex h-full flex-col p-5">
+    <Card className={cn("flex h-full flex-col p-5", className)}>
       <div className="flex items-start justify-between gap-3">
         <p className="text-sm font-medium text-muted">{metric.metric_title}</p>
         <TrafficLight state={metric.compliance_state} showLabel />
@@ -89,14 +98,15 @@ export function MetricCard({ metric, viz }: { metric: MetricView; viz: KpiViz })
         </>
       )}
 
-      {/* Operational definition — full-width off-grey subtext footer, sunk to
-          the bottom padding so footers align across a row */}
+      {/* Operational definition — full-width off-grey subtext footer, pinned to
+          the bottom with a reserved height so the divider rule and the copy
+          line up across every card in the grid (dials and linear bars alike). */}
       {metric.metric_description && (
-        <p className="mt-auto pt-4 text-xs leading-snug text-muted/80">
-          <span className="block border-t border-line/70 pt-3">
+        <div className="mt-auto pt-4">
+          <p className="min-h-[6rem] border-t border-line/70 pt-3 text-xs leading-snug text-muted/80">
             {metric.metric_description}
-          </span>
-        </p>
+          </p>
+        </div>
       )}
     </Card>
   );
@@ -146,7 +156,7 @@ function renderChart(m: MetricView, viz: KpiViz) {
           target={m.green_at}
           amber={m.amber_at}
           state={m.compliance_state}
-          unit={m.unit === "%" ? "%" : ""}
+          unit={m.unit === "%" ? "%" : m.unit ? m.unit : ""}
         />
       );
   }
