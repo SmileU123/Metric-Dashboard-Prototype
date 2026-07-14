@@ -7,6 +7,7 @@
 
 import { supabase, isSupabaseConfigured } from "@/lib/supabaseClient";
 import type {
+  ChatMessage,
   FilterState,
   KpiConfig,
   KpiDefinition,
@@ -52,6 +53,60 @@ export async function fetchTextAnswers(
       text: a.value_raw as string,
       sentiment: a.sentiment,
     }));
+}
+
+// ===========================================================================
+// Temporary in-platform chat (Phase-1 coordination). Live mode uses a shared
+// Supabase table so messages are visible across users; without a backend it
+// falls back to this browser's localStorage (not shared, demo-only).
+// ===========================================================================
+const CHAT_LS_KEY = "demo_chat_messages_v1";
+
+export async function fetchChatMessages(tenantId: string): Promise<ChatMessage[]> {
+  if (!supabase) {
+    try {
+      const all = JSON.parse(localStorage.getItem(CHAT_LS_KEY) ?? "[]") as ChatMessage[];
+      return all.filter((m) => m.tenant_id === tenantId);
+    } catch {
+      return [];
+    }
+  }
+  const { data, error } = await supabase
+    .from("chat_messages")
+    .select("id, tenant_id, sender, body, created_at")
+    .eq("tenant_id", tenantId)
+    .order("created_at", { ascending: true })
+    .limit(500);
+  if (error) throw error;
+  return data as ChatMessage[];
+}
+
+export async function sendChatMessage(msg: {
+  tenant_id: string;
+  sender: string;
+  body: string;
+}): Promise<void> {
+  if (!supabase) {
+    const all = (() => {
+      try {
+        return JSON.parse(localStorage.getItem(CHAT_LS_KEY) ?? "[]") as ChatMessage[];
+      } catch {
+        return [];
+      }
+    })();
+    all.push({
+      ...msg,
+      id:
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `local-${all.length}-${new Date().getTime()}`,
+      created_at: new Date().toISOString(),
+    });
+    localStorage.setItem(CHAT_LS_KEY, JSON.stringify(all));
+    return;
+  }
+  const { error } = await supabase.from("chat_messages").insert(msg);
+  if (error) throw error;
 }
 
 // Question catalog (survey_questions) — drives the Raw Data page columns.

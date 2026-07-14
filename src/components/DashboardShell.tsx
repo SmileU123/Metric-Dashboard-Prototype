@@ -15,6 +15,7 @@ import {
   type ReactNode,
 } from "react";
 import { FilterBar, MobileFilters } from "./FilterBar";
+import { ChatWidget } from "./ChatWidget";
 import { useApp } from "@/state/AppContext";
 import { dataSource } from "@/data/repository";
 import { DEEP_DIVE_PAGES } from "@/config/defensiveDesign";
@@ -74,6 +75,12 @@ const IconChat = () => (
     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
   </Icon>
 );
+const IconMessages = () => (
+  <Icon>
+    <path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z" />
+    <path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1" />
+  </Icon>
+);
 const IconTable = () => (
   <Icon>
     <rect x="3" y="3" width="18" height="18" rx="2" />
@@ -116,6 +123,10 @@ const NAV_SECTIONS: { title: string; items: NavEntry[] }[] = [
   {
     title: "Raw Data",
     items: [{ to: "/raw", label: "Full Survey Data", icon: IconTable }],
+  },
+  {
+    title: "Coordination",
+    items: [{ to: "/chat", label: "Team Chat", icon: IconMessages }],
   },
 ];
 
@@ -331,11 +342,11 @@ export function DashboardShell({ children }: { children: ReactNode }) {
       {/* Floating filter control (narrow screens only) */}
       {!isDesktop && <MobileFilters />}
 
-      {/* Corner governance toast */}
+      {/* Corner governance toast (bottom-left so it clears the chat launcher) */}
       <div
         aria-live="polite"
         className={cn(
-          "fixed bottom-5 right-5 z-50 transition-all duration-300",
+          "fixed bottom-5 left-5 z-50 transition-all duration-300",
           toastVisible
             ? "translate-y-0 opacity-100"
             : "pointer-events-none translate-y-3 opacity-0"
@@ -346,6 +357,9 @@ export function DashboardShell({ children }: { children: ReactNode }) {
           Feature locked for Phase 2 Production Launch
         </div>
       </div>
+
+      {/* Temporary in-platform chat (Phase-1 coordination) */}
+      <ChatWidget />
     </div>
   );
 }

@@ -225,6 +225,15 @@ export interface RawResponse {
   answers: RawAnswer[];
 }
 
+// Temporary in-platform chat message (Phase-1 coordination feature).
+export interface ChatMessage {
+  id: string;
+  tenant_id: string | null;
+  sender: string;
+  body: string;
+  created_at: string; // ISO
+}
+
 // One qualitative text answer (multi-stream Page-4 ledger).
 export interface TextAnswer {
   response_id: string;

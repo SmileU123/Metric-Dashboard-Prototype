@@ -6,6 +6,7 @@ import { DeepDivePage } from "./pages/DeepDivePage";
 import { QualitativePage } from "./pages/QualitativePage";
 import { RawDataPage } from "./pages/RawDataPage";
 import { KpiEnginePage } from "./pages/KpiEnginePage";
+import { ChatPage } from "./pages/ChatPage";
 
 function ErrorBanner() {
   const { error } = useApp();
@@ -27,6 +28,7 @@ export default function App() {
           <Route path="/feed/:slug" element={<DeepDivePage />} />
           <Route path="/qualitative" element={<QualitativePage />} />
           <Route path="/raw" element={<RawDataPage />} />
+          <Route path="/chat" element={<ChatPage />} />
           <Route path="/engine" element={<KpiEnginePage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
